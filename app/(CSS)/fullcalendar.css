@@ -1,0 +1,4 @@
+/* Highlight today's date */
+.fc .fc-day-today {
+  background-color: rgba(30, 255, 0, 0.777) !important;
+}
