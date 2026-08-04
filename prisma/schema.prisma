@@ -105,7 +105,7 @@ model VerificationToken {
 model Trail {
   id           String @id @default(cuid())
 
-  name         String
+  name         String @unique
   description  String
   difficulty   TrailDifficulty
 

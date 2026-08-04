@@ -1,0 +1,73 @@
+import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+
+export default auth((req) => {
+  const { nextUrl } = req;
+
+  const session = req.auth;
+
+  const isLoggedIn = !!session;
+
+  const role = session?.user?.role;
+
+  // Public Routes
+
+  const publicRoutes = [
+    "/",
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password",
+  ];
+
+  if (publicRoutes.includes(nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
+  // Admin Routes
+
+  if (
+    nextUrl.pathname.startsWith("/admin") ||
+    nextUrl.pathname.startsWith("/dashboard") ||
+    nextUrl.pathname.startsWith("/reservations") ||
+    nextUrl.pathname.startsWith("/users") ||
+    nextUrl.pathname.startsWith("/visitors") ||
+    nextUrl.pathname.startsWith("/reports") ||
+    nextUrl.pathname.startsWith("/calendar") ||
+    nextUrl.pathname.startsWith("/announcements") ||
+    nextUrl.pathname.startsWith("/trails") ||
+    nextUrl.pathname.startsWith("/settings") ||
+    nextUrl.pathname.startsWith("/profile")
+  ) {
+    if (!isLoggedIn) {
+      return NextResponse.redirect(new URL("/login", nextUrl));
+    }
+
+    if (role !== "ADMIN" && role !== "EMPLOYEE") {
+      return NextResponse.redirect(new URL("/user", nextUrl));
+    }
+  }
+
+  // User Routes
+
+  if (nextUrl.pathname.startsWith("/user")) {
+    if (!isLoggedIn) {
+      return NextResponse.redirect(new URL("/login", nextUrl));
+    }
+  }
+
+  return NextResponse.next();
+});
+
+export const config = {
+  matcher: [
+    /*
+     * Match all routes except:
+     * - api
+     * - _next
+     * - favicon.ico
+     * - static assets
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)",
+  ],
+};
