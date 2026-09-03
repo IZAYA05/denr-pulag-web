@@ -1,0 +1,42 @@
+services:
+  api:
+    build:
+      context: ./api
+
+    container_name: denr-pulag-api
+
+    working_dir: /var/www
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./api:/var/www
+
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      DB_DATABASE: epulag
+      DB_USERNAME: denr_pulag
+      DB_PASSWORD: denr_pulag_dev
+
+  web:
+    build:
+      context: ./web
+
+    container_name: denr-pulag-web
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+
+    environment:
+      NODE_ENV: development
+
+    depends_on:
+      - api
