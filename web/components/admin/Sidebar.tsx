@@ -34,22 +34,22 @@ const navigation = [
       },
       {
         label: "Reservations",
-        href: "/reservations",
+        href: "/admin/reservations",
         icon: ClipboardList,
       },
       {
         label: "Visitors",
-        href: "/visitors",
+        href: "/admin/visitors",
         icon: Users,
       },
       {
         label: "Trails",
-        href: "/trails",
+        href: "/admin/trails",
         icon: Mountain,
       },
       {
         label: "Calendar",
-        href: "/calendar",
+        href: "/admin/calendar",
         icon: CalendarDays,
       },
     ],
@@ -59,17 +59,17 @@ const navigation = [
     items: [
       {
         label: "Announcements",
-        href: "/announcements",
+        href: "/admin/announcements",
         icon: Bell,
       },
       {
         label: "Reports",
-        href: "/reports",
+        href: "/admin/reports",
         icon: FileBarChart2,
       },
       {
         label: "Users",
-        href: "/users",
+        href: "/admin/users",
         icon: ShieldCheck,
       },
     ],
@@ -175,100 +175,102 @@ export default function Sidebar({
         {/* Navigation */}
 
         <nav className="flex-1 overflow-y-auto px-4 py-6">
-                    {navigation.map((section) => (
-          <div
-            key={section.title}
-            className="mb-8"
-          >
-            {/* Section Title */}
+          {navigation.map((section) => (
+            <div
+              key={section.title}
+              className="mb-8"
+            >
+              {/* Section Title */}
 
-            {!collapsed && (
-              <p className="mb-3 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-                {section.title}
-              </p>
-            )}
+              {!collapsed && (
+                <p className="mb-3 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                  {section.title}
+                </p>
+              )}
 
-            <div className="space-y-2">
-              {section.items.map((item) => {
-                const Icon = item.icon;
+              <div className="space-y-2">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
 
-                const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`);
+                  const isActive =
+                    item.href === "/admin"
+                      ? pathname === "/admin"
+                      : pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`);
 
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    onClick={() => setIsOpen(false)}
-                    className={`group flex items-center rounded-2xl px-4 py-3 transition-all duration-300 ease-in-out ${
-                      collapsed
-                        ? "justify-center"
-                        : "gap-3"
-                    } ${
-                      isActive
-                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
-                        : "text-zinc-600 hover:translate-x-1 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <Icon
-                      strokeWidth={2.2}
-                      className={`h-5 w-5 shrink-0 transition-colors ${
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={`group flex items-center rounded-2xl px-4 py-3 transition-all duration-300 ease-in-out ${
+                        collapsed
+                          ? "justify-center"
+                          : "gap-3"
+                      } ${
                         isActive
-                          ? "text-white"
-                          : "text-zinc-500 group-hover:text-emerald-600 dark:text-zinc-400 dark:group-hover:text-emerald-400"
+                          ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                          : "text-zinc-600 hover:translate-x-1 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
                       }`}
-                    />
+                    >
+                      <Icon
+                        strokeWidth={2.2}
+                        className={`h-5 w-5 shrink-0 transition-colors ${
+                          isActive
+                            ? "text-white"
+                            : "text-zinc-500 group-hover:text-emerald-600 dark:text-zinc-400 dark:group-hover:text-emerald-400"
+                        }`}
+                      />
 
-                    {!collapsed && (
-                      <span className="truncate font-medium">
-                        {item.label}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
-
-      {/* Footer */}
-
-      <div className="border-t border-zinc-200 px-6 py-6 dark:border-zinc-800">
-        {collapsed ? (
-          <div className="flex justify-center">
-            <Mountain
-              className="h-6 w-6 text-emerald-600"
-              strokeWidth={2.3}
-            />
-          </div>
-        ) : (
-          <div className="text-center">
-            <div className="mb-2 flex justify-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/20">
-                <Mountain
-                  className="h-5 w-5 text-white"
-                  strokeWidth={2.3}
-                />
+                      {!collapsed && (
+                        <span className="truncate font-medium">
+                          {item.label}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
+          ))}
+        </nav>
 
-            <p className="font-semibold text-zinc-900 dark:text-white">
-              E-PULAG
-            </p>
+        {/* Footer */}
 
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Admin Dashboard
-            </p>
+        <div className="border-t border-zinc-200 px-6 py-6 dark:border-zinc-800">
+          {collapsed ? (
+            <div className="flex justify-center">
+              <Mountain
+                className="h-6 w-6 text-emerald-600"
+                strokeWidth={2.3}
+              />
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="mb-2 flex justify-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/20">
+                  <Mountain
+                    className="h-5 w-5 text-white"
+                    strokeWidth={2.3}
+                  />
+                </div>
+              </div>
 
-            <p className="mt-2 text-[11px] text-zinc-400">
-              Version 1.0
-            </p>
-          </div>
-        )}
-      </div>
-    </aside>
+              <p className="font-semibold text-zinc-900 dark:text-white">
+                E-PULAG
+              </p>
+
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Admin Dashboard
+              </p>
+
+              <p className="mt-2 text-[11px] text-zinc-400">
+                Version 1.0
+              </p>
+            </div>
+          )}
+        </div>
+      </aside>
     </>
   );
 }

@@ -29,40 +29,47 @@ export default function Modal({
       document.addEventListener("keydown", handleEscape);
     }
 
-    return () =>
+    return () => {
       document.removeEventListener("keydown", handleEscape);
+    };
   }, [open, onClose]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-3xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
         {/* Header */}
-
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
             {title}
           </h2>
 
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close modal"
             className="rounded-xl p-2 transition hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             <X className="h-5 w-5 text-zinc-600 dark:text-zinc-300" />
           </button>
         </div>
 
-        {/* Body */}
-
-        <div className="px-6 py-5">
+        {/* Scrollable Body */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
           {children}
         </div>
 
         {/* Footer */}
-
         {footer && (
-          <div className="flex justify-end gap-3 border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
+          <div className="flex shrink-0 justify-end gap-3 border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
             {footer}
           </div>
         )}

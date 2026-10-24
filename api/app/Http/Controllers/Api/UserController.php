@@ -74,6 +74,7 @@ class UserController extends Controller
                 Rule::in([
                     'ADMIN',
                     'EMPLOYEE',
+                    'ORGANIZER',
                     'USER',
                 ]),
             ],

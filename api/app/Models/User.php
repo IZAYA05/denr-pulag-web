@@ -12,11 +12,6 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'first_name',
         'last_name',
@@ -28,21 +23,11 @@ class User extends Authenticatable
         'image',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -52,10 +37,32 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the reservations made by the user.
+     * Get the direct DENR reservations made by the user.
      */
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
+    }
+
+    /**
+     * Get the Organizer packages owned by the user.
+     */
+    public function organizerPackages(): HasMany
+    {
+        return $this->hasMany(
+            OrganizerPackage::class,
+            'organizer_id'
+        );
+    }
+
+    /**
+     * Get the package bookings made by the user.
+     */
+    public function packageBookings(): HasMany
+    {
+        return $this->hasMany(
+            PackageBooking::class,
+            'customer_id'
+        );
     }
 }

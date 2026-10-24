@@ -28,10 +28,18 @@ class Trail extends Model
     }
 
     /**
-     * Get the reservations for the trail.
+     * Get the direct DENR reservations for the trail.
      */
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
+    }
+
+    /**
+     * Get the Organizer package bookings for the trail.
+     */
+    public function packageBookings(): HasMany
+    {
+        return $this->hasMany(PackageBooking::class);
     }
 }

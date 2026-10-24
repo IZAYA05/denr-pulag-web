@@ -48,6 +48,7 @@ export default function UserFilters({
             "All Roles",
             "Administrator",
             "Employee",
+            "Organizer",
             "User",
           ]}
           className="py-2.5"

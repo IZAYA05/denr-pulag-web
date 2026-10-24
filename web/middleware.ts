@@ -43,6 +43,9 @@ export default auth(
     |--------------------------------------------------------------------------
     | Admin Routes
     |--------------------------------------------------------------------------
+    |
+    | ADMIN and EMPLOYEE can access the current staff dashboard.
+    |
     */
 
     if (
@@ -72,6 +75,9 @@ export default auth(
     |--------------------------------------------------------------------------
     | Staff Routes
     |--------------------------------------------------------------------------
+    |
+    | These routes are restricted to ADMIN and EMPLOYEE.
+    |
     */
 
     if (
@@ -131,8 +137,50 @@ export default auth(
 
     /*
     |--------------------------------------------------------------------------
+    | Organizer Routes
+    |--------------------------------------------------------------------------
+    |
+    | ORGANIZER will have a separate dashboard and workflow.
+    |
+    */
+
+    if (
+      nextUrl.pathname.startsWith(
+        "/organizer"
+      )
+    ) {
+      if (
+        !isLoggedIn
+      ) {
+        return NextResponse.redirect(
+          new URL(
+            "/login",
+            nextUrl
+          )
+        );
+      }
+
+      if (
+        role !== "ORGANIZER"
+      ) {
+        return NextResponse.rewrite(
+          new URL(
+            "/not-found",
+            nextUrl
+          )
+        );
+      }
+
+      return NextResponse.next();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | User Home Route
     |--------------------------------------------------------------------------
+    |
+    | USER is the normal tourist account.
+    |
     */
 
     if (
@@ -146,6 +194,17 @@ export default auth(
         return NextResponse.redirect(
           new URL(
             "/login",
+            nextUrl
+          )
+        );
+      }
+
+      if (
+        role !== "USER"
+      ) {
+        return NextResponse.rewrite(
+          new URL(
+            "/not-found",
             nextUrl
           )
         );

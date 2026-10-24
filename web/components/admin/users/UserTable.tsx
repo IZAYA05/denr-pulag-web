@@ -26,6 +26,7 @@ import Select from "@/components/ui/Select";
 export type UserRole =
   | "Administrator"
   | "Employee"
+  | "Organizer"
   | "User";
 
 export type UserStatus =
@@ -71,6 +72,9 @@ function formatRole(role: string): UserRole {
     case "EMPLOYEE":
       return "Employee";
 
+    case "ORGANIZER":
+      return "Organizer";
+
     case "USER":
       return "User";
 
@@ -86,6 +90,9 @@ function formatApiRole(role: UserRole) {
 
     case "Employee":
       return "EMPLOYEE";
+
+    case "Organizer":
+      return "ORGANIZER";
 
     case "User":
       return "USER";
@@ -619,6 +626,9 @@ export default function UserTable({
                           : user.role ===
                             "Employee"
                           ? "secondary"
+                          : user.role ===
+                            "Organizer"
+                          ? "warning"
                           : "success"
                       }
                     >
@@ -815,6 +825,9 @@ export default function UserTable({
                         : viewingUser.role ===
                           "Employee"
                         ? "secondary"
+                        : viewingUser.role ===
+                          "Organizer"
+                        ? "warning"
                         : "success"
                     }
                   >
@@ -994,6 +1007,7 @@ export default function UserTable({
             options={[
               "Administrator",
               "Employee",
+              "Organizer",
               "User",
             ]}
           />

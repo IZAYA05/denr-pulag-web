@@ -25,37 +25,79 @@ export default function LoginForm() {
 
     const formData = new FormData(e.currentTarget);
 
-    const email = formData.get("email") as string;
+    const email =
+      formData.get("email") as string;
 
-    const password = formData.get("password") as string;
+    const password =
+      formData.get("password") as string;
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    const result = await signIn(
+      "credentials",
+      {
+        email,
+        password,
+        redirect: false,
+      }
+    );
 
     if (result?.error) {
       setLoading(false);
-      setError("Invalid email or password.");
+      setError(
+        "Invalid email or password."
+      );
       return;
     }
 
     const session = await fetch(
       "/api/auth/session"
-    ).then((res) => res.json());
+    ).then((res) =>
+      res.json()
+    );
+
+    const role =
+      session?.user?.role;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Role-Based Redirect
+    |--------------------------------------------------------------------------
+    */
 
     if (
-      session?.user?.role === "ADMIN" ||
-      session?.user?.role === "EMPLOYEE"
+      role === "ADMIN" ||
+      role === "EMPLOYEE"
     ) {
       router.push("/admin");
       router.refresh();
       return;
     }
 
-    router.push("/user");
-    router.refresh();
+    if (
+      role === "ORGANIZER"
+    ) {
+      router.push("/organizer");
+      router.refresh();
+      return;
+    }
+
+    if (
+      role === "USER"
+    ) {
+      router.push("/user");
+      router.refresh();
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Unknown Role
+    |--------------------------------------------------------------------------
+    */
+
+    setLoading(false);
+    setError(
+      "Your account has an invalid role. Please contact the administrator."
+    );
   }
 
   return (
