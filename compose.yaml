@@ -1,3 +1,4 @@
+
 services:
   api:
     build:
@@ -8,7 +9,7 @@ services:
     working_dir: /var/www
 
     ports:
-      - "8000:8000"
+      - "18000:8000"
 
     volumes:
       - ./api:/var/www
@@ -37,6 +38,7 @@ services:
 
     environment:
       NODE_ENV: development
+      NEXT_PUBLIC_LARAVEL_API_URL: http://localhost:18000
 
     depends_on:
       - api

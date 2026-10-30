@@ -12,7 +12,6 @@ export default function LoginForm() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
-
   const [error, setError] = useState("");
 
   async function handleLogin(
@@ -24,80 +23,58 @@ export default function LoginForm() {
     setError("");
 
     const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
 
-    const email =
-      formData.get("email") as string;
-
-    const password =
-      formData.get("password") as string;
-
-    const result = await signIn(
-      "credentials",
-      {
+    try {
+      const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
+      });
+
+      if (result?.error) {
+        setError("Invalid email or password.");
+        setLoading(false);
+        return;
       }
-    );
 
-    if (result?.error) {
-      setLoading(false);
+      const response = await fetch("/api/auth/session");
+      const session = await response.json();
+      const role = session?.user?.role;
+
+      switch (role) {
+        case "ADMIN":
+          router.push("/admin");
+          break;
+
+        case "EMPLOYEE":
+          router.push("/employee");
+          break;
+
+        case "ORGANIZER":
+          router.push("/organizer");
+          break;
+
+        case "USER":
+          router.push("/user");
+          break;
+
+        default:
+          setError(
+            "Your account has an invalid role. Please contact the administrator."
+          );
+          setLoading(false);
+          return;
+      }
+
+      router.refresh();
+    } catch {
       setError(
-        "Invalid email or password."
+        "Unable to sign in right now. Please try again."
       );
-      return;
+      setLoading(false);
     }
-
-    const session = await fetch(
-      "/api/auth/session"
-    ).then((res) =>
-      res.json()
-    );
-
-    const role =
-      session?.user?.role;
-
-    /*
-    |--------------------------------------------------------------------------
-    | Role-Based Redirect
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      role === "ADMIN" ||
-      role === "EMPLOYEE"
-    ) {
-      router.push("/admin");
-      router.refresh();
-      return;
-    }
-
-    if (
-      role === "ORGANIZER"
-    ) {
-      router.push("/organizer");
-      router.refresh();
-      return;
-    }
-
-    if (
-      role === "USER"
-    ) {
-      router.push("/user");
-      router.refresh();
-      return;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Unknown Role
-    |--------------------------------------------------------------------------
-    */
-
-    setLoading(false);
-    setError(
-      "Your account has an invalid role. Please contact the administrator."
-    );
   }
 
   return (
@@ -108,10 +85,7 @@ export default function LoginForm() {
         </div>
       )}
 
-      <form
-        onSubmit={handleLogin}
-        className="mt-8 space-y-5"
-      >
+      <form onSubmit={handleLogin} className="mt-8 space-y-5">
         <TextInput
           label="Email Address"
           name="email"
@@ -157,14 +131,12 @@ export default function LoginForm() {
                   stroke="currentColor"
                   strokeWidth="4"
                 />
-
                 <path
                   className="opacity-75"
                   fill="currentColor"
                   d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
                 />
               </svg>
-
               Signing In...
             </>
           ) : (
@@ -176,7 +148,6 @@ export default function LoginForm() {
       <div className="mt-8 border-t border-white/10 pt-6">
         <p className="text-center text-sm text-zinc-400">
           Don't have an account?{" "}
-
           <Link
             href="/register"
             className="font-semibold !text-emerald-400 transition hover:text-emerald-300"

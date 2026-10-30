@@ -1,0 +1,258 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  CalendarDays,
+  ChartNoAxesCombined,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  LayoutDashboard,
+  Mountain,
+  UserRound,
+  Users,
+  X,
+} from "lucide-react";
+
+type EmployeeSidebarProps = {
+  collapsed: boolean;
+  setCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
+  isOpen: boolean;
+  setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+};
+
+const navigation = [
+  {
+    title: "MAIN",
+    items: [
+      {
+        label: "Dashboard",
+        href: "/employee",
+        icon: LayoutDashboard,
+      },
+      {
+        label: "Bookings",
+        href: "/employee/bookings",
+        icon: ClipboardList,
+      },
+      {
+        label: "Visitors",
+        href: "/employee/visitors",
+        icon: Users,
+      },
+    ],
+  },
+  {
+    title: "OPERATIONS",
+    items: [
+      {
+        label: "Daily Reports",
+        href: "/employee/reports",
+        icon: ChartNoAxesCombined,
+      },
+      {
+        label: "Trail Schedules",
+        href: "/employee/trails",
+        icon: Mountain,
+      },
+      {
+        label: "My Profile",
+        href: "/employee/profile",
+        icon: UserRound,
+      },
+    ],
+  },
+];
+
+export default function EmployeeSidebar({
+  collapsed,
+  setCollapsed,
+  isOpen,
+  setIsOpen,
+}: EmployeeSidebarProps) {
+  const pathname = usePathname();
+
+  return (
+    <>
+      {isOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation overlay"
+          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+        />
+      )}
+
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-50
+          flex flex-col
+          border-r border-zinc-200
+          bg-white/90
+          shadow-sm
+          backdrop-blur-xl
+          transition-[width,transform] duration-300 ease-in-out
+          dark:border-zinc-800
+          dark:bg-zinc-950/90
+          w-[280px]
+          ${collapsed ? "lg:w-[88px]" : "lg:w-[280px]"}
+          ${
+            isOpen
+              ? "translate-x-0 shadow-2xl"
+              : "-translate-x-full lg:translate-x-0"
+          }
+        `}
+      >
+        <div className="flex h-[72.5px] items-center justify-between border-b border-zinc-200 px-5 dark:border-zinc-800">
+          <Link
+            href="/employee"
+            onClick={() => setIsOpen(false)}
+            className="flex min-w-0 items-center gap-3 overflow-hidden"
+          >
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 shadow-lg shadow-emerald-600/20">
+              <Mountain
+                className="h-6 w-6 text-white"
+                strokeWidth={2.4}
+              />
+            </div>
+
+            {!collapsed && (
+              <div className="min-w-0 leading-tight">
+                <h1 className="truncate text-xl font-bold tracking-tight text-zinc-900 dark:text-white">
+                  E-PULAG
+                </h1>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  Reservation System
+                </p>
+              </div>
+            )}
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="hidden shrink-0 rounded-xl border border-zinc-200 p-2 transition-all duration-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900 lg:flex"
+          >
+            {collapsed ? (
+              <ChevronRight className="h-5 w-5 text-zinc-600 dark:text-zinc-300" />
+            ) : (
+              <ChevronLeft className="h-5 w-5 text-zinc-600 dark:text-zinc-300" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            onClick={() => setIsOpen(false)}
+            className="rounded-xl p-2 transition hover:bg-zinc-100 dark:hover:bg-zinc-900 lg:hidden"
+          >
+            <X className="h-5 w-5 text-zinc-600 dark:text-zinc-300" />
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-4 py-6">
+          {navigation.map((section) => (
+            <div key={section.title} className="mb-8">
+              {!collapsed && (
+                <p className="mb-3 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                  {section.title}
+                </p>
+              )}
+
+              <div className="space-y-2">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+
+                  const isActive =
+                    item.href === "/employee"
+                      ? pathname === "/employee"
+                      : pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`);
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      title={collapsed ? item.label : undefined}
+                      aria-current={isActive ? "page" : undefined}
+                      className={`
+                        group flex items-center rounded-2xl px-4 py-3
+                        transition-all duration-300 ease-in-out
+                        ${
+                          collapsed
+                            ? "justify-center"
+                            : "gap-3"
+                        }
+                        ${
+                          isActive
+                            ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                            : "text-zinc-600 hover:translate-x-1 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-white"
+                        }
+                      `}
+                    >
+                      <Icon
+                        strokeWidth={2.2}
+                        className={`
+                          h-5 w-5 shrink-0 transition-colors
+                          ${
+                            isActive
+                              ? "text-white"
+                              : "text-zinc-500 group-hover:text-emerald-600 dark:text-zinc-400 dark:group-hover:text-emerald-400"
+                          }
+                        `}
+                      />
+
+                      {!collapsed && (
+                        <span className="truncate text-sm font-medium">
+                          {item.label}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t border-zinc-200 px-5 py-6 dark:border-zinc-800">
+          {collapsed ? (
+            <div className="flex justify-center">
+              <Mountain
+                className="h-6 w-6 text-emerald-600"
+                strokeWidth={2.3}
+              />
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="mb-2 flex justify-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/20">
+                  <Mountain
+                    className="h-5 w-5 text-white"
+                    strokeWidth={2.3}
+                  />
+                </div>
+              </div>
+
+              <p className="font-semibold text-zinc-900 dark:text-white">
+                E-PULAG
+              </p>
+
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Employee Dashboard
+              </p>
+
+              <p className="mt-2 text-[11px] text-zinc-400">
+                Mount Pulag Visitor Management
+              </p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}

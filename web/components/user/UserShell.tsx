@@ -9,9 +9,7 @@ type UserShellProps = {
   children: React.ReactNode;
 };
 
-export default function UserShell({
-  children,
-}: UserShellProps) {
+export default function UserShell({ children }: UserShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -26,14 +24,14 @@ export default function UserShell({
 
       <div
         className={`
-          min-h-screen transition-all duration-300
+          min-h-screen min-w-0 transition-[margin] duration-300 ease-in-out
           ${collapsed ? "lg:ml-[88px]" : "lg:ml-[280px]"}
         `}
       >
         <UserTopbar setIsOpen={setIsOpen} />
 
-        <main className="p-6">
-          <div className="w-full max-w-[1600px]">
+        <main className="min-w-0 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-[1600px]">
             {children}
           </div>
         </main>

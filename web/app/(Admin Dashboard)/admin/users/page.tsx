@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -9,8 +10,7 @@ import UserTable from "@/components/admin/users/UserTable";
 export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("All Roles");
-  const [status, setStatus] =
-    useState("All Status");
+  const [status, setStatus] = useState("All Status");
 
   return (
     <div className="space-y-8">

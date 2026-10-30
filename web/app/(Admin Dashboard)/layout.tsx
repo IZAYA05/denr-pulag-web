@@ -18,10 +18,15 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  if (
-    session.user.role !== "ADMIN" &&
-    session.user.role !== "EMPLOYEE"
-  ) {
+  if (session.user.role !== "ADMIN") {
+    if (session.user.role === "EMPLOYEE") {
+      redirect("/employee");
+    }
+
+    if (session.user.role === "ORGANIZER") {
+      redirect("/organizer");
+    }
+
     redirect("/user");
   }
 
