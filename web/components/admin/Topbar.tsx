@@ -1,20 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   Menu,
   Search,
-  Bell,
   ChevronDown,
 } from "lucide-react";
 
 import ThemeToggle from "@/components/theme/ThemeToggle";
-
-import NotificationBadge from "@/components/admin/notifications/NotificationBadge";
-import NotificationDropdown from "@/components/admin/notifications/NotificationDropdown";
+import NotificationBell from "@/components/shared/notifications/NotificationBell";
 
 type TopbarProps = {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -24,12 +21,6 @@ export default function Topbar({
   setIsOpen,
 }: TopbarProps) {
   const pathname = usePathname();
-
-  const [openNotifications, setOpenNotifications] = useState(false);
-
-  const notificationRef = useRef<HTMLDivElement>(null);
-
-  const unreadNotifications = 2;
 
   const pageTitle = useMemo(() => {
     const routes: Record<string, string> = {
@@ -55,28 +46,6 @@ export default function Topbar({
     });
   }
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        notificationRef.current &&
-        !notificationRef.current.contains(event.target as Node)
-      ) {
-        setOpenNotifications(false);
-      }
-    }
-
-    document.addEventListener(
-      "mousedown",
-      handleClickOutside
-    );
-
-    return () =>
-      document.removeEventListener(
-        "mousedown",
-        handleClickOutside
-      );
-  }, []);
-
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/90">
       <div className="flex h-[72px] items-center justify-between px-6">
@@ -88,6 +57,7 @@ export default function Topbar({
           {/* Mobile Sidebar Toggle */}
 
           <button
+            type="button"
             onClick={() => setIsOpen(true)}
             className="rounded-xl p-2 transition hover:bg-zinc-100 dark:hover:bg-zinc-900 lg:hidden"
           >
@@ -130,44 +100,7 @@ export default function Topbar({
 
           {/* Notifications */}
 
-          <div
-            ref={notificationRef}
-            className="relative"
-          >
-            <button
-              onClick={() =>
-                setOpenNotifications(!openNotifications)
-              }
-              className="
-                relative
-                flex
-                h-10
-                w-10
-                items-center
-                justify-center
-                rounded-2xl
-                border
-                border-zinc-200
-                bg-white
-                transition-all
-                hover:border-emerald-500
-                hover:text-emerald-600
-                dark:border-zinc-700
-                dark:bg-zinc-900
-                dark:hover:border-emerald-500
-              "
-            >
-              <Bell className="h-5 w-5" />
-
-              <NotificationBadge
-                count={unreadNotifications}
-              />
-            </button>
-
-            <NotificationDropdown
-              open={openNotifications}
-            />
-          </div>
+          <NotificationBell />
 
           {/* Profile */}
 
@@ -229,6 +162,7 @@ export default function Topbar({
               <hr className="border-zinc-200 dark:border-zinc-700" />
 
               <button
+                type="button"
                 onClick={handleLogout}
                 className="w-full px-5 py-3 text-left text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950/30"
               >

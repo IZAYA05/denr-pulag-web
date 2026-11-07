@@ -22,6 +22,8 @@ class Reservation extends Model
         'remarks',
         'user_id',
         'trail_id',
+        'terms_version',
+        'terms_accepted_at',
     ];
 
     protected function casts(): array
@@ -30,28 +32,20 @@ class Reservation extends Model
             'booking_date' => 'datetime',
             'hiking_date' => 'date',
             'total_participants' => 'integer',
+            'terms_accepted_at' => 'datetime',
         ];
     }
 
-    /**
-     * Get the user who made the reservation.
-     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get the trail associated with the reservation.
-     */
     public function trail(): BelongsTo
     {
         return $this->belongsTo(Trail::class);
     }
 
-    /**
-     * Get the participants for the reservation.
-     */
     public function participants(): HasMany
     {
         return $this->hasMany(ReservationParticipant::class);

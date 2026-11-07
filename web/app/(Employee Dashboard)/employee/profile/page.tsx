@@ -1,5 +1,5 @@
-import EmployeeProfile from "@/components/employee/EmployeeProfile";
+import ProfileSettings from "@/components/shared/profile/ProfileSettings";
 
 export default function EmployeeProfilePage() {
-  return <EmployeeProfile />;
+  return <ProfileSettings showEmployeeActions />;
 }

@@ -14,11 +14,12 @@ import { useEmployeeDashboard } from "@/components/employee/EmployeeDashboardCli
 type Booking = {
   id: number;
   type: "DIRECT" | "PACKAGE";
-  booking_number: string;
+  booking_number?: string | null;
   group_leader_name?: string | null;
   hiking_date: string;
-  total_visitors: number;
+  total_visitors?: number | null;
   status: string;
+  denr_status?: string | null;
   created_at?: string;
   trail?: {
     name?: string | null;
@@ -41,8 +42,18 @@ type BookingsResponse = {
   message?: string;
 };
 
+type StatusItem = {
+  key: string;
+  label: string;
+  style: string;
+};
+
 const API_URL =
   process.env.NEXT_PUBLIC_LARAVEL_API_URL || "http://localhost:18000";
+
+function normalizeStatus(status?: string | null) {
+  return (status || "").trim().toUpperCase();
+}
 
 function formatDate(value: string) {
   if (!value) return "Not specified";
@@ -76,11 +87,7 @@ function getBookingName(booking: Booking) {
     if (name) return name;
   }
 
-  return (
-    booking.package?.name ||
-    booking.package?.title ||
-    "Package customer"
-  );
+  return "Unknown customer";
 }
 
 function formatStatus(status: string) {
@@ -90,23 +97,142 @@ function formatStatus(status: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function getStatusStyle(status: string) {
-  switch (status.toUpperCase()) {
-    case "APPROVED":
+function getStatusStyle(label: string) {
+  switch (label) {
+    case "DENR Approved":
+    case "Organizer Approved":
+    case "Completed":
       return "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300";
 
-    case "PENDING":
+    case "Awaiting Organizer":
       return "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300";
 
-    case "REJECTED":
+    case "Awaiting DENR":
+      return "bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300";
+
+    case "DENR Rejected":
+    case "Organizer Rejected":
+    case "Rejected":
       return "bg-red-50 text-red-700 dark:bg-red-400/10 dark:text-red-300";
 
-    case "CANCELLED":
+    case "Cancelled":
       return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
 
     default:
       return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
   }
+}
+
+function getBookingStatuses(booking: Booking): StatusItem[] {
+  const organizerStatus = normalizeStatus(booking.status);
+  const denrStatus = normalizeStatus(booking.denr_status);
+
+  if (booking.type === "DIRECT") {
+    let label: string;
+
+    switch (organizerStatus) {
+      case "PENDING":
+        label = "Awaiting DENR";
+        break;
+      case "APPROVED":
+        label = "DENR Approved";
+        break;
+      case "REJECTED":
+        label = "Rejected";
+        break;
+      case "CANCELLED":
+        label = "Cancelled";
+        break;
+      case "COMPLETED":
+        label = "Completed";
+        break;
+      default:
+        label = formatStatus(organizerStatus || "Status unavailable");
+    }
+
+    return [
+      {
+        key: "direct-status",
+        label,
+        style: getStatusStyle(label),
+      },
+    ];
+  }
+
+  let organizerLabel: string;
+
+  switch (organizerStatus) {
+    case "PENDING":
+      organizerLabel = "Awaiting Organizer";
+      break;
+    case "APPROVED":
+      organizerLabel = "Organizer Approved";
+      break;
+    case "REJECTED":
+      organizerLabel = "Organizer Rejected";
+      break;
+    case "CANCELLED":
+      organizerLabel = "Cancelled";
+      break;
+    case "COMPLETED":
+      organizerLabel = "Completed";
+      break;
+    default:
+      organizerLabel = formatStatus(
+        organizerStatus || "Status unavailable"
+      );
+  }
+
+  const statuses: StatusItem[] = [
+    {
+      key: "organizer-status",
+      label: organizerLabel,
+      style: getStatusStyle(organizerLabel),
+    },
+  ];
+
+  if (organizerStatus === "APPROVED") {
+    let denrLabel: string;
+
+    switch (denrStatus) {
+      case "PENDING":
+        denrLabel = "Awaiting DENR";
+        break;
+      case "APPROVED":
+        denrLabel = "DENR Approved";
+        break;
+      case "REJECTED":
+        denrLabel = "DENR Rejected";
+        break;
+      default:
+        denrLabel = "DENR Status Unavailable";
+    }
+
+    statuses.push({
+      key: "denr-status",
+      label: denrLabel,
+      style: getStatusStyle(denrLabel),
+    });
+  }
+
+  return statuses;
+}
+
+function StatusBadges({ booking }: { booking: Booking }) {
+  const statuses = getBookingStatuses(booking);
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {statuses.map((status) => (
+        <span
+          key={status.key}
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${status.style}`}
+        >
+          {status.label}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function EmployeeRecentBookings() {
@@ -120,6 +246,12 @@ export default function EmployeeRecentBookings() {
     const controller = new AbortController();
 
     async function fetchRecentBookings() {
+      if (!accessToken) {
+        setBookings([]);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -160,11 +292,9 @@ export default function EmployeeRecentBookings() {
 
         const combined = [...direct, ...packages];
 
-        // The endpoint returns each booking type in latest-first
-        // order. Use creation timestamps when they are available.
-        const hasAllTimestamps = combined.every(
-          (booking) => Boolean(booking.created_at)
-        );
+        const hasAllTimestamps =
+          combined.length > 0 &&
+          combined.every((booking) => Boolean(booking.created_at));
 
         if (hasAllTimestamps) {
           combined.sort(
@@ -173,8 +303,6 @@ export default function EmployeeRecentBookings() {
               new Date(a.created_at!).getTime()
           );
         } else {
-          // Without creation timestamps, display the nearest
-          // upcoming hiking dates first.
           combined.sort(
             (a, b) =>
               new Date(a.hiking_date).getTime() -
@@ -266,7 +394,7 @@ export default function EmployeeRecentBookings() {
       ) : (
         <>
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[720px] text-left">
+            <table className="w-full min-w-[760px] text-left">
               <thead className="bg-zinc-50 dark:bg-zinc-950/60">
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
                   {[
@@ -295,7 +423,8 @@ export default function EmployeeRecentBookings() {
                   >
                     <td className="px-5 py-4">
                       <p className="text-sm font-semibold text-zinc-900 dark:text-white">
-                        {booking.booking_number}
+                        {booking.booking_number ||
+                          `Booking #${booking.id}`}
                       </p>
 
                       <span
@@ -305,9 +434,7 @@ export default function EmployeeRecentBookings() {
                             : "bg-sky-50 text-sky-700 dark:bg-sky-400/10 dark:text-sky-300"
                         }`}
                       >
-                        {booking.type === "DIRECT"
-                          ? "Direct"
-                          : "Package"}
+                        {booking.type === "DIRECT" ? "Direct" : "Package"}
                       </span>
                     </td>
 
@@ -324,17 +451,11 @@ export default function EmployeeRecentBookings() {
                     </td>
 
                     <td className="px-5 py-4 text-sm text-zinc-600 dark:text-zinc-300">
-                      {booking.total_visitors}
+                      {booking.total_visitors ?? "Unavailable"}
                     </td>
 
                     <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusStyle(
-                          booking.status
-                        )}`}
-                      >
-                        {formatStatus(booking.status)}
-                      </span>
+                      <StatusBadges booking={booking} />
                     </td>
                   </tr>
                 ))}
@@ -351,21 +472,18 @@ export default function EmployeeRecentBookings() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="break-all text-sm font-semibold text-zinc-900 dark:text-white">
-                      {booking.booking_number}
+                      {booking.booking_number ||
+                        `Booking #${booking.id}`}
                     </p>
 
                     <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                       {getBookingName(booking)}
                     </p>
                   </div>
+                </div>
 
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusStyle(
-                      booking.status
-                    )}`}
-                  >
-                    {formatStatus(booking.status)}
-                  </span>
+                <div className="mt-3">
+                  <StatusBadges booking={booking} />
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -373,10 +491,9 @@ export default function EmployeeRecentBookings() {
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       Booking Type
                     </p>
+
                     <p className="mt-1 font-medium text-zinc-800 dark:text-zinc-200">
-                      {booking.type === "DIRECT"
-                        ? "Direct"
-                        : "Package"}
+                      {booking.type === "DIRECT" ? "Direct" : "Package"}
                     </p>
                   </div>
 
@@ -384,6 +501,7 @@ export default function EmployeeRecentBookings() {
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       Hiking Date
                     </p>
+
                     <p className="mt-1 font-medium text-zinc-800 dark:text-zinc-200">
                       {formatDate(booking.hiking_date)}
                     </p>
@@ -393,6 +511,7 @@ export default function EmployeeRecentBookings() {
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       Trail
                     </p>
+
                     <p className="mt-1 font-medium text-zinc-800 dark:text-zinc-200">
                       {booking.trail?.name || "Not assigned"}
                     </p>
@@ -402,8 +521,9 @@ export default function EmployeeRecentBookings() {
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       Visitors
                     </p>
+
                     <p className="mt-1 font-medium text-zinc-800 dark:text-zinc-200">
-                      {booking.total_visitors}
+                      {booking.total_visitors ?? "Unavailable"}
                     </p>
                   </div>
                 </div>

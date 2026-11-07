@@ -13,6 +13,7 @@ class OrganizerPackage extends Model
 
     protected $fillable = [
         'organizer_id',
+        'is_walk_in',
         'name',
         'description',
         'price',
@@ -23,30 +24,22 @@ class OrganizerPackage extends Model
     protected function casts(): array
     {
         return [
+            'is_walk_in' => 'boolean',
             'price' => 'decimal:2',
             'max_tourists' => 'integer',
         ];
     }
 
-    /**
-     * Get the organizer who owns the package.
-     */
     public function organizer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'organizer_id');
     }
 
-    /**
-     * Get the services included in the package.
-     */
     public function services(): HasMany
     {
         return $this->hasMany(PackageService::class, 'package_id');
     }
 
-    /**
-     * Get the bookings made for this package.
-     */
     public function bookings(): HasMany
     {
         return $this->hasMany(PackageBooking::class, 'package_id');

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell,
   ChevronDown,
   LogOut,
   Menu,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import NotificationBell from "@/components/shared/notifications/NotificationBell";
 
 type UserTopbarProps = {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -106,17 +106,13 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
 
         {/* Right controls */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <ThemeToggle className="h-10 w-10 rounded-xl" iconSize="h-5 w-5" />
+          <ThemeToggle
+            className="h-10 w-10 rounded-xl"
+            iconSize="h-5 w-5"
+          />
 
-          <button
-            type="button"
-            aria-label="Notifications"
-            title="Notifications"
-            onClick={() => router.push("/user/announcements")}
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-          >
-            <Bell className="h-5 w-5" />
-          </button>
+          {/* Functional Notifications */}
+          <NotificationBell />
 
           {/* Profile menu */}
           <div className="relative" ref={dropdownRef}>
@@ -136,6 +132,7 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
                 <p className="max-w-36 truncate text-sm font-semibold text-zinc-900 dark:text-white">
                   {userName}
                 </p>
+
                 <p className="mt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
                   Visitor account
                 </p>
@@ -162,6 +159,7 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
                     <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
                       {userName}
                     </p>
+
                     <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
                       {userEmail}
                     </p>
@@ -198,3 +196,4 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
     </header>
   );
 }
+0

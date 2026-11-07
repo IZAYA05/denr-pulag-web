@@ -10,6 +10,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   Mountain,
+  Package,
   UserRound,
   Users,
   X,
@@ -46,6 +47,11 @@ const navigation = [
   {
     title: "OPERATIONS",
     items: [
+      {
+        label: "Walk-in Package",
+        href: "/employee/packages",
+        icon: Package,
+      },
       {
         label: "Daily Reports",
         href: "/employee/reports",

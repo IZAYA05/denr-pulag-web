@@ -15,24 +15,11 @@ import type { ApiPackageBooking } from "@/components/organizer/BookingDetailsMod
 export type BookingStatus =
   | "Pending"
   | "Confirmed"
+  | "Rejected"
   | "Cancelled"
   | "Completed";
 
-export type CoordinationStatus =
-  | "Not Coordinated"
-  | "Pending"
-  | "Coordinated";
-
-export type ApiCoordinationStatus =
-  | "NOT_COORDINATED"
-  | "PENDING"
-  | "COORDINATED";
-
-type ApiBookingStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "CANCELLED"
-  | "COMPLETED";
+export type BookingDecisionStatus = "APPROVED" | "REJECTED";
 
 type PackageBooking = {
   id: string;
@@ -42,7 +29,6 @@ type PackageBooking = {
   tourists: number;
   amount: number;
   status: BookingStatus;
-  coordination: CoordinationStatus;
 };
 
 type BookingContextValue = {
@@ -53,10 +39,9 @@ type BookingContextValue = {
   error: string;
   actionError: string;
   cancelling: boolean;
-  coordinationLoadingId: number | null;
+  statusLoadingId: number | null;
   search: string;
   statusFilter: string;
-  coordinationFilter: string;
   dateFilter: string;
   totalBookings: number;
   confirmedBookings: number;
@@ -66,42 +51,31 @@ type BookingContextValue = {
   bookingToCancel: ApiPackageBooking | null;
   setSearch: (value: string) => void;
   setStatusFilter: (value: string) => void;
-  setCoordinationFilter: (value: string) => void;
   setDateFilter: (value: string) => void;
   setSelectedBooking: (booking: ApiPackageBooking | null) => void;
   setBookingToCancel: (booking: ApiPackageBooking | null) => void;
   setActionError: (value: string) => void;
   cancelBooking: () => Promise<void>;
-  updateCoordination: (
+  updateStatus: (
     booking: ApiPackageBooking,
-    status: ApiCoordinationStatus
+    status: BookingDecisionStatus
   ) => Promise<boolean>;
   refreshBookings: () => Promise<void>;
 };
 
 const BookingContext = createContext<BookingContextValue | null>(null);
 
-function formatBookingStatus(status: ApiBookingStatus): BookingStatus {
-  const statuses: Record<ApiBookingStatus, BookingStatus> = {
+function formatBookingStatus(status: string): BookingStatus {
+  const statuses: Record<string, BookingStatus> = {
     PENDING: "Pending",
+    APPROVED: "Confirmed",
     CONFIRMED: "Confirmed",
+    REJECTED: "Rejected",
     CANCELLED: "Cancelled",
     COMPLETED: "Completed",
   };
 
   return statuses[status] ?? "Pending";
-}
-
-function formatCoordinationStatus(
-  status: ApiCoordinationStatus
-): CoordinationStatus {
-  const statuses: Record<ApiCoordinationStatus, CoordinationStatus> = {
-    NOT_COORDINATED: "Not Coordinated",
-    PENDING: "Pending",
-    COORDINATED: "Coordinated",
-  };
-
-  return statuses[status] ?? "Not Coordinated";
 }
 
 function formatDate(date: string) {
@@ -120,6 +94,7 @@ function formatDate(date: string) {
 export function BookingProvider({ children }: { children: ReactNode }) {
   const { data: session, status: sessionStatus } = useSession();
   const token = session?.user?.accessToken;
+
   const apiUrl =
     process.env.NEXT_PUBLIC_LARAVEL_API_URL || "http://localhost:8000";
 
@@ -128,16 +103,15 @@ export function BookingProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [cancelling, setCancelling] = useState(false);
-  const [coordinationLoadingId, setCoordinationLoadingId] =
-    useState<number | null>(null);
+  const [statusLoadingId, setStatusLoadingId] = useState<number | null>(null);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [coordinationFilter, setCoordinationFilter] = useState(
-    "All Verification Statuses"
-  );
   const [dateFilter, setDateFilter] = useState("");
+
   const [selectedBooking, setSelectedBooking] =
     useState<ApiPackageBooking | null>(null);
+
   const [bookingToCancel, setBookingToCancel] =
     useState<ApiPackageBooking | null>(null);
 
@@ -150,10 +124,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         rawDate: booking.hiking_date.slice(0, 10),
         tourists: booking.tourist_count,
         amount: Number(booking.package?.price ?? 0),
-        status: formatBookingStatus(booking.status),
-        coordination: formatCoordinationStatus(
-          booking.coordination_status
-        ),
+        status: formatBookingStatus(String(booking.status)),
       })),
     [apiBookings]
   );
@@ -223,26 +194,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         statusFilter === "All Status" ||
         booking.status === statusFilter;
 
-      const matchesCoordination =
-        coordinationFilter === "All Verification Statuses" ||
-        (coordinationFilter === "Not Verified" &&
-          booking.coordination === "Not Coordinated") ||
-        (coordinationFilter === "Verification Pending" &&
-          booking.coordination === "Pending") ||
-        (coordinationFilter === "Verified" &&
-          booking.coordination === "Coordinated");
-
       const matchesDate =
         !dateFilter || booking.rawDate === dateFilter;
 
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesCoordination &&
-        matchesDate
-      );
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [bookings, search, statusFilter, coordinationFilter, dateFilter]);
+  }, [bookings, search, statusFilter, dateFilter]);
 
   const totalBookings = bookings.length;
 
@@ -259,6 +216,9 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     0
   );
 
+  /**
+   * Cancel a package booking.
+   */
   const cancelBooking = useCallback(async () => {
     if (!bookingToCancel || !token) {
       setActionError("You must be logged in to cancel a booking.");
@@ -314,22 +274,35 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     }
   }, [apiUrl, bookingToCancel, token]);
 
-  const updateCoordination = useCallback(
+  /**
+   * Approve or reject a Tourist package booking.
+   *
+   * The backend checks Organizer ownership and sends
+   * the corresponding notification to the Tourist.
+   */
+  const updateStatus = useCallback(
     async (
       booking: ApiPackageBooking,
-      status: ApiCoordinationStatus
+      status: BookingDecisionStatus
     ): Promise<boolean> => {
       if (!token) {
-        setActionError("You must be logged in to update coordination.");
+        setActionError("You must be logged in to update booking status.");
         return false;
       }
 
-      setCoordinationLoadingId(booking.id);
+      if (booking.status !== "PENDING") {
+        setActionError(
+          "Only pending bookings can be approved or rejected."
+        );
+        return false;
+      }
+
+      setStatusLoadingId(booking.id);
       setActionError("");
 
       try {
         const response = await fetch(
-          `${apiUrl}/api/package-bookings/${booking.id}/coordination`,
+          `${apiUrl}/api/package-bookings/${booking.id}/status`,
           {
             method: "PATCH",
             headers: {
@@ -338,7 +311,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
               Accept: "application/json",
             },
             body: JSON.stringify({
-              coordination_status: status,
+              status,
             }),
           }
         );
@@ -347,12 +320,14 @@ export function BookingProvider({ children }: { children: ReactNode }) {
 
         if (!response.ok) {
           throw new Error(
-            data?.message || "Failed to update DENR coordination."
+            data?.message || "Failed to update package booking status."
           );
         }
 
         if (!data.booking) {
-          throw new Error("The server did not return the updated booking.");
+          throw new Error(
+            "The server did not return the updated booking."
+          );
         }
 
         const updatedBooking = data.booking as ApiPackageBooking;
@@ -364,7 +339,9 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         );
 
         setSelectedBooking((current) =>
-          current?.id === updatedBooking.id ? updatedBooking : current
+          current?.id === updatedBooking.id
+            ? updatedBooking
+            : current
         );
 
         return true;
@@ -372,12 +349,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         setActionError(
           err instanceof Error
             ? err.message
-            : "Failed to update DENR coordination."
+            : "Failed to update package booking status."
         );
 
         return false;
       } finally {
-        setCoordinationLoadingId(null);
+        setStatusLoadingId(null);
       }
     },
     [apiUrl, token]
@@ -392,10 +369,9 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       error,
       actionError,
       cancelling,
-      coordinationLoadingId,
+      statusLoadingId,
       search,
       statusFilter,
-      coordinationFilter,
       dateFilter,
       totalBookings,
       confirmedBookings,
@@ -405,13 +381,12 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       bookingToCancel,
       setSearch,
       setStatusFilter,
-      setCoordinationFilter,
       setDateFilter,
       setSelectedBooking,
       setBookingToCancel,
       setActionError,
       cancelBooking,
-      updateCoordination,
+      updateStatus,
       refreshBookings,
     }),
     [
@@ -422,10 +397,9 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       error,
       actionError,
       cancelling,
-      coordinationLoadingId,
+      statusLoadingId,
       search,
       statusFilter,
-      coordinationFilter,
       dateFilter,
       totalBookings,
       confirmedBookings,
@@ -434,7 +408,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       selectedBooking,
       bookingToCancel,
       cancelBooking,
-      updateCoordination,
+      updateStatus,
       refreshBookings,
     ]
   );

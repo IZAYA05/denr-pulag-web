@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { useEmployeeDashboard } from "@/components/employee/EmployeeDashboardClient";
 
 type Trail = {
@@ -51,49 +52,33 @@ function TrailCard({
   onView: (trail: Trail) => void;
 }) {
   const active = isTrailActive(trail.is_active);
-  const directBookings = Number(trail.approved_reservations_count ?? 0);
-  const packageBookings = Number(trail.approved_package_bookings_count ?? 0);
+  const directBookings = Number(
+    trail.approved_reservations_count ?? 0
+  );
+  const packageBookings = Number(
+    trail.approved_package_bookings_count ?? 0
+  );
   const totalBookings = directBookings + packageBookings;
+
+  const imageUrl = trail.image
+    ? trail.image.startsWith("http")
+      ? trail.image
+      : `${API_URL}/storage/${trail.image.replace(/^\/+/, "")}`
+    : null;
 
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:border-emerald-300 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 dark:hover:border-emerald-800">
       <div className="relative h-36 bg-gradient-to-br from-emerald-800 via-emerald-700 to-green-950">
-        {trail.image ? (
-          // The image path is supplied by the Laravel API.
+        {imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={
-              trail.image.startsWith("http")
-                ? trail.image
-                : `${API_URL}/storage/${trail.image.replace(/^\/+/, "")}`
-            }
+            src={imageUrl}
             alt={trail.name}
             className="h-full w-full object-cover"
             onError={(event) => {
               event.currentTarget.style.display = "none";
             }}
           />
-        ) : (
-          <div className="flex h-full items-center justify-center text-emerald-100">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              className="h-16 w-16 opacity-80"
-              aria-hidden="true"
-            >
-              <path
-                d="m3 20 6-11 4 6 3-4 5 9H3Z"
-                strokeLinejoin="round"
-              />
-              <path
-                d="m8 7 1-2 1 2M15 10l1-3 2 3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
         )}
 
         <span
@@ -181,6 +166,25 @@ function Detail({
   );
 }
 
+function SummaryCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+        {label}
+      </p>
+      <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+        {value.toLocaleString()}
+      </p>
+    </div>
+  );
+}
+
 export default function EmployeeTrails() {
   const { accessToken } = useEmployeeDashboard();
 
@@ -193,7 +197,11 @@ export default function EmployeeTrails() {
   const [selectedTrail, setSelectedTrail] = useState<Trail | null>(null);
 
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken) {
+      setTrails([]);
+      setLoading(false);
+      return;
+    }
 
     const controller = new AbortController();
 
@@ -211,7 +219,7 @@ export default function EmployeeTrails() {
           signal: controller.signal,
         });
 
-        const data = (await response.json()) as TrailsResponse;
+        const data: TrailsResponse = await response.json();
 
         if (!response.ok) {
           throw new Error(data.message || "Unable to load trails.");
@@ -222,7 +230,9 @@ export default function EmployeeTrails() {
         if (err instanceof Error && err.name === "AbortError") return;
 
         setError(
-          err instanceof Error ? err.message : "Unable to load trail records."
+          err instanceof Error
+            ? err.message
+            : "Unable to load trail records."
         );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -240,8 +250,9 @@ export default function EmployeeTrails() {
     return trails.filter((trail) => {
       const matchesSearch =
         !term ||
-        [trail.name, trail.description, trail.difficulty].some((value) =>
-          String(value ?? "").toLowerCase().includes(term)
+        [trail.name, trail.description, trail.difficulty].some(
+          (value) =>
+            String(value ?? "").toLowerCase().includes(term)
         );
 
       const active = isTrailActive(trail.is_active);
@@ -415,7 +426,7 @@ export default function EmployeeTrails() {
                 aria-label="Close trail details"
                 className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
-                ✕
+                <X size={20} />
               </button>
             </div>
 
@@ -456,8 +467,12 @@ export default function EmployeeTrails() {
                 <Detail
                   label="Total Approved Bookings"
                   value={
-                    Number(selectedTrail.approved_reservations_count ?? 0) +
-                    Number(selectedTrail.approved_package_bookings_count ?? 0)
+                    Number(
+                      selectedTrail.approved_reservations_count ?? 0
+                    ) +
+                    Number(
+                      selectedTrail.approved_package_bookings_count ?? 0
+                    )
                   }
                 />
               </div>
@@ -480,19 +495,6 @@ export default function EmployeeTrails() {
           </section>
         </div>
       )}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-        {value.toLocaleString()}
-      </p>
     </div>
   );
 }

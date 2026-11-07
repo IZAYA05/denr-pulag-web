@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { useDashboard } from "@/components/admin/DashboardClient";
 
@@ -14,38 +15,54 @@ type Reservation = {
   reservation_number: string;
   group_leader_name: string;
   hiking_date: string;
-  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
-
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "COMPLETED";
   trail?: {
     name: string;
   } | null;
 };
 
+type ReservationsResponse = {
+  reservations?: Reservation[];
+  message?: string;
+};
+
+const API_URL =
+  process.env.NEXT_PUBLIC_LARAVEL_API_URL || "http://localhost:18000";
+
 export default function RecentReservations() {
   const { accessToken } = useDashboard();
 
-  const [reservations, setReservations] = useState<
-    Reservation[]
-  >([]);
-
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
+
     async function fetchReservations() {
+      if (!accessToken) {
+        setReservations([]);
+        setLoading(false);
+        return;
+      }
+
       try {
+        setLoading(true);
+        setError("");
+
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_LARAVEL_API_URL}/api/admin/reservations`,
+          `${API_URL}/api/admin/reservations`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
               Accept: "application/json",
             },
+            cache: "no-store",
+            signal: controller.signal,
           }
         );
 
-        const data = await response.json();
+        const data: ReservationsResponse = await response.json();
 
         if (!response.ok) {
           throw new Error(
@@ -53,22 +70,45 @@ export default function RecentReservations() {
           );
         }
 
-        // Only show the 5 most recent reservations
-        setReservations(data.reservations.slice(0, 5));
-      } catch (error) {
-        console.error(error);
+        const records = Array.isArray(data.reservations)
+          ? data.reservations
+          : [];
 
-        setError("Failed to load reservations.");
+        setReservations(records.slice(0, 5));
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+
+        console.error(err);
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to load reservations."
+        );
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
-    fetchReservations();
+    void fetchReservations();
+
+    return () => controller.abort();
   }, [accessToken]);
 
-  function formatDate(date: string) {
-    return new Date(date).toLocaleDateString("en-PH", {
+  function formatDate(value: string) {
+    if (!value) return "Not specified";
+
+    const date = new Date(`${value.slice(0, 10)}T00:00:00`);
+
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleDateString("en-PH", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -76,61 +116,61 @@ export default function RecentReservations() {
   }
 
   function formatStatus(status: Reservation["status"]) {
-    return status.charAt(0) + status.slice(1).toLowerCase();
+    return status
+      .toLowerCase()
+      .replaceAll("_", " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 
   function getBadgeVariant(status: Reservation["status"]) {
     switch (status) {
       case "APPROVED":
-        return "success";
+        return "success" as const;
 
       case "PENDING":
-        return "warning";
+        return "warning" as const;
+
+      case "REJECTED":
+      case "CANCELLED":
+        return "danger" as const;
 
       default:
-        return "danger";
+        return "success" as const;
     }
   }
 
   return (
     <Card className="bg-white/90 p-6 backdrop-blur-xl dark:bg-zinc-950/90">
-      {/* Header */}
-
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
-            Recent Reservations
+            Recent Direct Reservations
           </h2>
 
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Latest booking activities
+            Latest direct reservation records.
           </p>
         </div>
 
-        <Button className="px-4 py-2">
-          View All
-        </Button>
+        <Link href="/admin/reservations">
+          <Button className="px-4 py-2">
+            View All
+          </Button>
+        </Link>
       </div>
 
-      {/* Loading */}
-
-      {loading && (
+      {loading ? (
         <div className="py-8 text-center text-sm text-zinc-500">
           Loading reservations...
         </div>
-      )}
-
-      {/* Error */}
-
-      {!loading && error && (
-        <div className="py-8 text-center text-sm text-red-500">
+      ) : error ? (
+        <div
+          role="alert"
+          className="py-8 text-center text-sm text-red-500"
+        >
           {error}
         </div>
-      )}
-
-      {/* Table */}
-
-      {!loading && !error && (
+      ) : (
         <Table className="border-0 bg-transparent shadow-none">
           <thead className="border-b border-zinc-200 dark:border-zinc-800">
             <tr className="text-left">
@@ -139,7 +179,7 @@ export default function RecentReservations() {
               </th>
 
               <th className="pb-4 text-sm font-semibold text-zinc-500">
-                Visitor
+                Group Leader
               </th>
 
               <th className="pb-4 text-sm font-semibold text-zinc-500">
@@ -147,7 +187,7 @@ export default function RecentReservations() {
               </th>
 
               <th className="pb-4 text-sm font-semibold text-zinc-500">
-                Date
+                Hiking Date
               </th>
 
               <th className="pb-4 text-sm font-semibold text-zinc-500">
@@ -163,7 +203,7 @@ export default function RecentReservations() {
                   colSpan={5}
                   className="py-8 text-center text-sm text-zinc-500"
                 >
-                  No reservations found.
+                  No direct reservations found.
                 </td>
               </tr>
             ) : (
@@ -174,16 +214,17 @@ export default function RecentReservations() {
                 >
                   <td className="py-4">
                     <span className="font-semibold text-zinc-900 dark:text-white">
-                      {reservation.reservation_number}
+                      {reservation.reservation_number ||
+                        `Reservation #${reservation.id}`}
                     </span>
                   </td>
 
                   <td className="py-4 text-zinc-600 dark:text-zinc-300">
-                    {reservation.group_leader_name}
+                    {reservation.group_leader_name || "Not specified"}
                   </td>
 
                   <td className="py-4 text-zinc-600 dark:text-zinc-300">
-                    {reservation.trail?.name || "Unknown Trail"}
+                    {reservation.trail?.name || "Not assigned"}
                   </td>
 
                   <td className="py-4 text-zinc-600 dark:text-zinc-300">
@@ -192,9 +233,7 @@ export default function RecentReservations() {
 
                   <td className="py-4">
                     <Badge
-                      variant={getBadgeVariant(
-                        reservation.status
-                      )}
+                      variant={getBadgeVariant(reservation.status)}
                     >
                       {formatStatus(reservation.status)}
                     </Badge>

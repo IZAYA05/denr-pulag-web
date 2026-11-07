@@ -11,6 +11,7 @@ import {
   FileBarChart2,
   LayoutDashboard,
   Mountain,
+  Package,
   ShieldCheck,
   Users,
   X,
@@ -58,6 +59,11 @@ const navigation = [
     title: "MANAGEMENT",
     items: [
       {
+        label: "Walk-in Package",
+        href: "/admin/packages",
+        icon: Package,
+      },
+      {
         label: "Announcements",
         href: "/admin/announcements",
         icon: Bell,
@@ -86,16 +92,14 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile Overlay */}
-
       {isOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Close navigation overlay"
           onClick={() => setIsOpen(false)}
           className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
         />
       )}
-
-      {/* Sidebar */}
 
       <aside
         className={`
@@ -106,14 +110,10 @@ export default function Sidebar({
           shadow-sm
           backdrop-blur-xl
           transition-[width,transform] duration-300 ease-in-out
-
           dark:border-zinc-800
           dark:bg-zinc-950/90
-
           w-[280px]
-
           ${collapsed ? "lg:w-[88px]" : "lg:w-[280px]"}
-
           ${
             isOpen
               ? "translate-x-0"
@@ -121,8 +121,6 @@ export default function Sidebar({
           }
         `}
       >
-        {/* Header */}
-
         <div className="flex h-[72.5px] items-center justify-between border-b border-zinc-200 px-6 dark:border-zinc-800">
           <Link
             href="/admin"
@@ -149,10 +147,11 @@ export default function Sidebar({
             )}
           </Link>
 
-          {/* Desktop Collapse */}
-
           <button
+            type="button"
             onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="hidden rounded-xl border border-zinc-200 p-2 transition-all duration-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900 lg:flex"
           >
             {collapsed ? (
@@ -162,9 +161,9 @@ export default function Sidebar({
             )}
           </button>
 
-          {/* Mobile Close */}
-
           <button
+            type="button"
+            aria-label="Close sidebar"
             onClick={() => setIsOpen(false)}
             className="rounded-xl p-2 transition hover:bg-zinc-100 dark:hover:bg-zinc-900 lg:hidden"
           >
@@ -172,16 +171,9 @@ export default function Sidebar({
           </button>
         </div>
 
-        {/* Navigation */}
-
         <nav className="flex-1 overflow-y-auto px-4 py-6">
           {navigation.map((section) => (
-            <div
-              key={section.title}
-              className="mb-8"
-            >
-              {/* Section Title */}
-
+            <div key={section.title} className="mb-8">
               {!collapsed && (
                 <p className="mb-3 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
                   {section.title}
@@ -200,13 +192,13 @@ export default function Sidebar({
 
                   return (
                     <Link
-                      key={item.label}
+                      key={item.href}
                       href={item.href}
                       onClick={() => setIsOpen(false)}
+                      title={collapsed ? item.label : undefined}
+                      aria-current={isActive ? "page" : undefined}
                       className={`group flex items-center rounded-2xl px-4 py-3 transition-all duration-300 ease-in-out ${
-                        collapsed
-                          ? "justify-center"
-                          : "gap-3"
+                        collapsed ? "justify-center" : "gap-3"
                       } ${
                         isActive
                           ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
@@ -234,8 +226,6 @@ export default function Sidebar({
             </div>
           ))}
         </nav>
-
-        {/* Footer */}
 
         <div className="border-t border-zinc-200 px-6 py-6 dark:border-zinc-800">
           {collapsed ? (
@@ -265,7 +255,7 @@ export default function Sidebar({
               </p>
 
               <p className="mt-2 text-[11px] text-zinc-400">
-                Version 1.0
+                Mount Pulag Visitor Management
               </p>
             </div>
           )}

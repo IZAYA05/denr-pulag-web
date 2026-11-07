@@ -19,8 +19,10 @@ class PackageBooking extends Model
         'hiking_date',
         'tourist_count',
         'status',
-        'coordination_status',
+        'denr_status',
         'remarks',
+        'terms_version',
+        'terms_accepted_at',
     ];
 
     protected function casts(): array
@@ -28,12 +30,10 @@ class PackageBooking extends Model
         return [
             'hiking_date' => 'date',
             'tourist_count' => 'integer',
+            'terms_accepted_at' => 'datetime',
         ];
     }
 
-    /**
-     * Get the package being booked.
-     */
     public function package(): BelongsTo
     {
         return $this->belongsTo(
@@ -42,9 +42,6 @@ class PackageBooking extends Model
         );
     }
 
-    /**
-     * Get the customer who made the booking.
-     */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(
@@ -53,17 +50,11 @@ class PackageBooking extends Model
         );
     }
 
-    /**
-     * Get the trail for this booking.
-     */
     public function trail(): BelongsTo
     {
         return $this->belongsTo(Trail::class);
     }
 
-    /**
-     * Get the tourists included in this booking.
-     */
     public function tourists(): HasMany
     {
         return $this->hasMany(

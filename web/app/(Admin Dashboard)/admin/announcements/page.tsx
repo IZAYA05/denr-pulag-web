@@ -1,67 +1,37 @@
-"use client";
+import { Bell } from "lucide-react";
 
-import { useState } from "react";
-
-import AnnouncementCard from "@/components/admin/announcements/AnnouncementCard";
-import AnnouncementFilters from "@/components/admin/announcements/AnnouncementFilters";
-import AnnouncementModal from "@/components/admin/announcements/AnnouncementModal";
 import AnnouncementStats from "@/components/admin/announcements/AnnouncementStats";
-
-const announcements = [
-  {
-    id: 1,
-    title: "Trail Maintenance Notice",
-    description:
-      "The Ambangeg Trail will be temporarily closed on August 15, 2026 due to scheduled maintenance.",
-    status: "Published" as const,
-    date: "August 1, 2026",
-  },
-  {
-    id: 2,
-    title: "Weather Advisory",
-    description:
-      "Heavy rainfall is expected this weekend. Visitors are advised to monitor weather updates before their hike.",
-    status: "Draft" as const,
-    date: "July 30, 2026",
-  },
-  {
-    id: 3,
-    title: "Holiday Schedule",
-    description:
-      "Reservations will be unavailable during the National Heroes Day holiday.",
-    status: "Scheduled" as const,
-    date: "August 20, 2026",
-  },
-];
+import Card from "@/components/ui/Card";
 
 export default function AnnouncementsPage() {
-  const [open, setOpen] = useState(false);
-
   return (
     <div className="space-y-8">
-      <AnnouncementStats />
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
+          Announcements
+        </h1>
 
-      <AnnouncementFilters
-        onNewAnnouncement={() => setOpen(true)}
-      />
-
-      <div className="space-y-5">
-        {announcements.map((announcement) => (
-          <AnnouncementCard
-            key={announcement.id}
-            title={announcement.title}
-            description={announcement.description}
-            status={announcement.status}
-            date={announcement.date}
-          />
-        ))}
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          Manage announcements for tourists and organizers.
+        </p>
       </div>
 
-      <AnnouncementModal
-        open={open}
-        onClose={() => setOpen(false)}
-        mode="create"
-      />
+      <AnnouncementStats />
+
+      <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
+        <div className="rounded-2xl bg-zinc-100 p-4 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          <Bell className="h-8 w-8" />
+        </div>
+
+        <h2 className="mt-5 text-lg font-semibold text-zinc-900 dark:text-white">
+          Announcement Management Not Yet Connected
+        </h2>
+
+        <p className="mt-2 max-w-md text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+          Announcement publishing and management are not yet connected to
+          the backend. No demonstration announcements are displayed.
+        </p>
+      </Card>
     </div>
   );
 }

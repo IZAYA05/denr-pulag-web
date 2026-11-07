@@ -7,9 +7,12 @@ use App\Models\OrganizerPackage;
 use App\Models\PackageBooking;
 use App\Models\Reservation;
 use App\Models\Trail;
+use App\Models\User;
+use App\Notifications\SystemNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class PackageBookingController extends Controller
 {
@@ -43,6 +46,30 @@ class PackageBookingController extends Controller
         }
 
         $bookings = $query->latest()->get();
+
+        return response()->json([
+            'bookings' => $bookings,
+        ]);
+    }
+
+    /**
+     * Display all package bookings for ADMIN and EMPLOYEE review.
+     *
+     * This endpoint is protected by the role:ADMIN,EMPLOYEE route middleware.
+     * It intentionally does not apply the customer or organizer ownership
+     * filters used by the regular package booking index.
+     */
+    public function adminIndex(): JsonResponse
+    {
+        $bookings = PackageBooking::with([
+            'package.organizer:id,first_name,last_name,email',
+            'package.services',
+            'customer:id,first_name,last_name,email',
+            'trail:id,name',
+            'tourists',
+        ])
+            ->latest()
+            ->get();
 
         return response()->json([
             'bookings' => $bookings,
@@ -86,6 +113,9 @@ class PackageBookingController extends Controller
 
     /**
      * Create a new package booking.
+     *
+     * Every submitted booking receives its own independent
+     * Organizer and DENR approval workflow.
      */
     public function store(Request $request): JsonResponse
     {
@@ -203,7 +233,6 @@ class PackageBookingController extends Controller
 
         $hikingDate = $validated['hiking_date'];
         $today = now()->startOfDay();
-        $maximumBookingDate = now()->addMonth()->endOfDay();
 
         if ($hikingDate < $today->toDateString()) {
             return response()->json([
@@ -211,58 +240,11 @@ class PackageBookingController extends Controller
             ], 422);
         }
 
-        if ($hikingDate > $maximumBookingDate->toDateString()) {
-            return response()->json([
-                'message' =>
-                    'Bookings can only be made up to one month in advance.',
-            ], 422);
-        }
 
         /*
-         * Capacity is shared between:
-         * 1. Direct DENR reservations
-         * 2. Organizer package bookings
-         *
-         * Maximum capacity is 500 visitors per hiking date.
+         * Create booking and tourist records
+         * inside a database transaction.
          */
-        $directReservationCount = Reservation::query()
-            ->whereDate('hiking_date', $hikingDate)
-            ->whereNotIn('status', [
-                'CANCELLED',
-                'REJECTED',
-            ])
-            ->sum('total_participants');
-
-        $packageBookingCount = PackageBooking::query()
-            ->whereDate('hiking_date', $hikingDate)
-            ->whereNotIn('status', [
-                'CANCELLED',
-                'REJECTED',
-            ])
-            ->sum('tourist_count');
-
-        $currentCapacity =
-            $directReservationCount + $packageBookingCount;
-
-        $maximumCapacity = 500;
-
-        if (
-            $currentCapacity + $validated['tourist_count'] >
-            $maximumCapacity
-        ) {
-            $remainingCapacity = max(
-                0,
-                $maximumCapacity - $currentCapacity
-            );
-
-            return response()->json([
-                'message' =>
-                    'The selected hiking date has insufficient visitor capacity.',
-                'current_capacity' => $currentCapacity,
-                'maximum_capacity' => $maximumCapacity,
-                'remaining_capacity' => $remainingCapacity,
-            ], 422);
-        }
 
         $booking = DB::transaction(function () use (
             $validated,
@@ -277,8 +259,13 @@ class PackageBookingController extends Controller
                 'trail_id' => $validated['trail_id'],
                 'hiking_date' => $validated['hiking_date'],
                 'tourist_count' => $validated['tourist_count'],
+
+                // Stage 1: Organizer review.
                 'status' => 'PENDING',
-                'coordination_status' => 'NOT_COORDINATED',
+
+                // Stage 2 has not started yet.
+                'denr_status' => null,
+
                 'remarks' => $validated['remarks'] ?? null,
             ]);
 
@@ -306,6 +293,36 @@ class PackageBookingController extends Controller
             'tourists',
         ]);
 
+        /*
+         * Notify the package organizer after successful booking creation.
+         */
+
+        $customerName = trim(
+            ($booking->customer?->first_name ?? '') . ' ' .
+            ($booking->customer?->last_name ?? '')
+        );
+
+        $this->notifySafely(
+            $booking->package?->organizer,
+            new SystemNotification(
+                'New Package Booking',
+                "{$customerName} submitted a booking for {$booking->package?->name}.",
+                'package_booking',
+                null,
+                [
+                    'booking_id' => $booking->id,
+                    'booking_number' => $booking->booking_number,
+                    'customer_id' => $booking->customer_id,
+                    'package_id' => $booking->package_id,
+                    'package_name' => $booking->package?->name,
+                    'hiking_date' => $booking->hiking_date,
+                    'tourist_count' => $booking->tourist_count,
+                    'status' => 'PENDING',
+                    'denr_status' => null,
+                ]
+            )
+        );
+
         return response()->json([
             'message' => 'Package booking created successfully.',
             'booking' => $booking,
@@ -313,9 +330,12 @@ class PackageBookingController extends Controller
     }
 
     /**
-     * Update DENR coordination status for an organizer's package booking.
+     * Stage 1:
+     * Organizer approves or rejects an individual Tourist booking.
+     *
+     * Only the Organizer who owns the package can perform this action.
      */
-    public function updateCoordination(
+    public function updateStatus(
         Request $request,
         PackageBooking $packageBooking
     ): JsonResponse {
@@ -327,6 +347,7 @@ class PackageBookingController extends Controller
             ], 404);
         }
 
+        // Verify that the Organizer owns this package.
         $ownsBooking = $packageBooking->package()
             ->where('organizer_id', $user->id)
             ->exists();
@@ -338,26 +359,224 @@ class PackageBookingController extends Controller
         }
 
         $validated = $request->validate([
-            'coordination_status' => [
+            'status' => [
                 'required',
                 'string',
-                'in:NOT_COORDINATED,PENDING,COORDINATED',
+                'in:APPROVED,REJECTED',
             ],
         ]);
 
-        $packageBooking->update([
-            'coordination_status' => $validated['coordination_status'],
+        // Only pending bookings can be processed by the Organizer.
+        if ($packageBooking->status !== 'PENDING') {
+            return response()->json([
+                'message' =>
+                    'Only pending bookings can be approved or rejected.',
+            ], 422);
+        }
+
+        $packageBooking->loadMissing([
+            'customer',
+            'package',
         ]);
 
-        $packageBooking->load([
-            'package.services',
-            'trail',
-            'tourists',
+        $customer = $packageBooking->customer;
+
+        // Organizer decisions are only allowed for Tourist accounts.
+        if (!$customer || $customer->role !== 'USER') {
+            return response()->json([
+                'message' =>
+                    'This action is only available for tourist bookings.',
+            ], 422);
+        }
+
+        $newStatus = $validated['status'];
+        $approved = $newStatus === 'APPROVED';
+
+        /*
+         * The Organizer's decision is independent
+         * for every package booking.
+         */
+
+        $packageBooking->update([
+            'status' => $newStatus,
+
+            // Only approved bookings proceed to DENR review.
+            'denr_status' => $approved ? 'PENDING' : null,
         ]);
+
+        $packageName = $packageBooking->package?->name
+            ?? 'your package';
+
+        /*
+         * Notify the Tourist of the Organizer's decision.
+         */
+
+        $this->notifySafely(
+            $customer,
+            new SystemNotification(
+                $approved
+                    ? 'Package Booking Approved by Organizer'
+                    : 'Package Booking Rejected by Organizer',
+                $approved
+                    ? "Your booking for {$packageName} has been approved by the Organizer and forwarded to DENR for final hike approval."
+                    : "Your booking for {$packageName} has been rejected by the Organizer. It will not proceed to DENR review.",
+                'package_booking',
+                null,
+                [
+                    'booking_id' => $packageBooking->id,
+                    'booking_number' => $packageBooking->booking_number,
+                    'package_id' => $packageBooking->package_id,
+                    'package_name' => $packageName,
+                    'status' => $newStatus,
+                    'denr_status' => $approved ? 'PENDING' : null,
+                ]
+            )
+        );
 
         return response()->json([
-            'message' => 'DENR coordination status updated successfully.',
-            'booking' => $packageBooking,
+            'message' => $approved
+                ? 'Package booking approved and forwarded to DENR.'
+                : 'Package booking rejected successfully.',
+            'booking' => $packageBooking->fresh([
+                'package.services',
+                'package.organizer',
+                'customer:id,first_name,last_name,email',
+                'trail',
+                'tourists',
+            ]),
+        ]);
+    }
+
+    /**
+     * Stage 2:
+     * ADMIN or EMPLOYEE makes the final DENR hike decision.
+     *
+     * Only Organizer-approved package bookings awaiting
+     * DENR review can be processed.
+     */
+    public function updateDenrStatus(
+        Request $request,
+        PackageBooking $packageBooking
+    ): JsonResponse {
+        $user = $request->user();
+
+        if (!in_array($user->role, ['ADMIN', 'EMPLOYEE'], true)) {
+            return response()->json([
+                'message' => 'Unauthorized to process DENR approval.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'denr_status' => [
+                'required',
+                'string',
+                'in:APPROVED,REJECTED',
+            ],
+        ]);
+
+        /*
+         * The Organizer must have approved the booking first.
+         * DENR cannot process pending or Organizer-rejected requests.
+         */
+
+        if (
+            $packageBooking->status !== 'APPROVED' ||
+            $packageBooking->denr_status !== 'PENDING'
+        ) {
+            return response()->json([
+                'message' =>
+                    'Only Organizer-approved bookings awaiting DENR review can be processed.',
+            ], 422);
+        }
+
+        $packageBooking->loadMissing([
+            'customer',
+            'package.organizer',
+        ]);
+
+        $customer = $packageBooking->customer;
+
+        if (!$customer || $customer->role !== 'USER') {
+            return response()->json([
+                'message' => 'Tourist account associated with this booking was not found.',
+            ], 422);
+        }
+
+        $newDenrStatus = $validated['denr_status'];
+        $approved = $newDenrStatus === 'APPROVED';
+
+        // Update only the DENR decision.
+        $packageBooking->update([
+            'denr_status' => $newDenrStatus,
+        ]);
+
+        $packageName = $packageBooking->package?->name
+            ?? 'your package';
+
+        /*
+         * Notify the Tourist of the final DENR decision.
+         */
+
+        $this->notifySafely(
+            $customer,
+            new SystemNotification(
+                $approved
+                    ? 'Hike Approved by DENR'
+                    : 'Hike Rejected by DENR',
+                $approved
+                    ? "DENR has approved your hike for {$packageName}. Your booking has passed both approval stages."
+                    : "DENR has rejected your hike for {$packageName}. Your booking will not proceed.",
+                'package_booking',
+                null,
+                [
+                    'booking_id' => $packageBooking->id,
+                    'booking_number' => $packageBooking->booking_number,
+                    'package_id' => $packageBooking->package_id,
+                    'package_name' => $packageName,
+                    'status' => $packageBooking->status,
+                    'denr_status' => $newDenrStatus,
+                ]
+            )
+        );
+
+        /*
+         * Notify the Organizer of DENR's final decision as well.
+         */
+
+        $this->notifySafely(
+            $packageBooking->package?->organizer,
+            new SystemNotification(
+                $approved
+                    ? 'DENR Approved Package Booking'
+                    : 'DENR Rejected Package Booking',
+                $approved
+                    ? "DENR approved booking {$packageBooking->booking_number} for {$packageName}."
+                    : "DENR rejected booking {$packageBooking->booking_number} for {$packageName}.",
+                'package_booking',
+                null,
+                [
+                    'booking_id' => $packageBooking->id,
+                    'booking_number' => $packageBooking->booking_number,
+                    'package_id' => $packageBooking->package_id,
+                    'package_name' => $packageName,
+                    'customer_id' => $customer->id,
+                    'status' => $packageBooking->status,
+                    'denr_status' => $newDenrStatus,
+                ]
+            )
+        );
+
+        return response()->json([
+            'message' => $approved
+                ? 'DENR approved the package booking successfully.'
+                : 'DENR rejected the package booking successfully.',
+            'booking' => $packageBooking->fresh([
+                'package.services',
+                'package.organizer',
+                'customer:id,first_name,last_name,email',
+                'trail',
+                'tourists',
+            ]),
         ]);
     }
 
@@ -387,9 +606,43 @@ class PackageBookingController extends Controller
             ], 422);
         }
 
+        $packageBooking->loadMissing([
+            'package.organizer:id,first_name,last_name,email',
+        ]);
+
         $packageBooking->update([
             'status' => 'CANCELLED',
         ]);
+
+        /*
+         * Notify the package Organizer after cancellation.
+         */
+
+        $customer = $request->user();
+
+        $customerName = trim(
+            $customer->first_name . ' ' . $customer->last_name
+        );
+
+        $this->notifySafely(
+            $packageBooking->package?->organizer,
+            new SystemNotification(
+                'Package Booking Cancelled',
+                "{$customerName} cancelled package booking {$packageBooking->booking_number}.",
+                'package_booking',
+                null,
+                [
+                    'booking_id' => $packageBooking->id,
+                    'booking_number' => $packageBooking->booking_number,
+                    'customer_id' => $customer->id,
+                    'package_id' => $packageBooking->package_id,
+                    'package_name' => $packageBooking->package?->name,
+                    'hiking_date' => $packageBooking->hiking_date,
+                    'status' => 'CANCELLED',
+                    'denr_status' => $packageBooking->denr_status,
+                ]
+            )
+        );
 
         return response()->json([
             'message' => 'Package booking cancelled successfully.',
@@ -399,6 +652,25 @@ class PackageBookingController extends Controller
                 'tourists',
             ]),
         ]);
+    }
+
+    /**
+     * Safely send a notification without rolling back
+     * an already-completed booking operation.
+     */
+    private function notifySafely(
+        ?User $recipient,
+        SystemNotification $notification
+    ): void {
+        if (!$recipient) {
+            return;
+        }
+
+        try {
+            $recipient->notify($notification);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
     }
 
     /**

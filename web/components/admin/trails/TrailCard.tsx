@@ -1,30 +1,22 @@
-"use client";
-
 import {
-  Clock3,
-  Eye,
-  MapPinned,
   Mountain,
-  Pencil,
-  Trash2,
   Users,
+  CalendarDays,
 } from "lucide-react";
 
 import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
-import Dropdown from "@/components/ui/Dropdown";
-
-export type TrailStatus = "Open" | "Closed" | "Maintenance";
 
 export interface Trail {
-  id: string;
+  id: number;
   name: string;
-  difficulty: "Easy" | "Moderate" | "Hard";
-  distance: string;
-  duration: string;
-  capacity: number;
-  status: TrailStatus;
+  description: string;
+  difficulty: string;
+  image: string | null;
+  max_capacity: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 type TrailCardProps = {
@@ -32,18 +24,20 @@ type TrailCardProps = {
 };
 
 export default function TrailCard({ trail }: TrailCardProps) {
-  const difficultyColors = {
-    Easy: "text-emerald-600 dark:text-emerald-400",
-    Moderate: "text-amber-600 dark:text-amber-400",
-    Hard: "text-red-600 dark:text-red-400",
+  const difficultyColors: Record<string, string> = {
+    EASY: "text-emerald-600 dark:text-emerald-400",
+    MODERATE: "text-amber-600 dark:text-amber-400",
+    HARD: "text-red-600 dark:text-red-400",
   };
 
+  const difficulty = trail.difficulty?.toUpperCase() || "UNSPECIFIED";
+
   return (
-    <Card className="p-6 transition-all hover:-translate-y-1 hover:shadow-lg">
+    <Card className="p-6 transition-shadow hover:shadow-lg">
       {/* Header */}
 
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
             <Mountain className="h-7 w-7" />
           </div>
@@ -53,99 +47,70 @@ export default function TrailCard({ trail }: TrailCardProps) {
           </h3>
 
           <p
-            className={`mt-1 text-sm font-semibold ${difficultyColors[trail.difficulty]}`}
+            className={`mt-1 text-sm font-semibold ${
+              difficultyColors[difficulty] ||
+              "text-zinc-500 dark:text-zinc-400"
+            }`}
           >
-            {trail.difficulty}
+            {trail.difficulty || "Not specified"}
+          </p>
+
+          <p className="mt-1 text-xs text-zinc-400">
+            Trail ID: {trail.id}
           </p>
         </div>
 
-        {/* Actions */}
-
-        <Dropdown>
-          <Button
-            variant="ghost"
-            className="flex w-full justify-start gap-2 rounded-none"
-          >
-            <Eye className="h-4 w-4" />
-            View Details
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="flex w-full justify-start gap-2 rounded-none"
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-
-          <Button
-            variant="ghost"
-            className="flex w-full justify-start gap-2 rounded-none text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete Trail
-          </Button>
-        </Dropdown>
-      </div>
-
-      {/* Status */}
-
-      <div className="mt-5">
-        <Badge
-          variant={
-            trail.status === "Open"
-              ? "success"
-              : trail.status === "Maintenance"
-              ? "warning"
-              : "danger"
-          }
-        >
-          {trail.status}
+        <Badge variant={trail.is_active ? "success" : "danger"}>
+          {trail.is_active ? "Active" : "Inactive"}
         </Badge>
       </div>
 
-      {/* Details */}
+      {/* Description */}
 
-      <div className="mt-6 space-y-4">
-        {/* Distance */}
+      <div className="mt-5 min-h-16">
+        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Description
+        </p>
 
-        <div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-300">
-          <MapPinned className="h-5 w-5 text-zinc-400" />
+        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+          {trail.description || "No description provided."}
+        </p>
+      </div>
 
-          <div>
-            <p className="text-xs uppercase tracking-wide text-zinc-500">
-              Distance
-            </p>
+      {/* Database Details */}
 
-            <p className="font-medium">{trail.distance}</p>
-          </div>
-        </div>
-
-        {/* Duration */}
-
-        <div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-300">
-          <Clock3 className="h-5 w-5 text-zinc-400" />
-
-          <div>
-            <p className="text-xs uppercase tracking-wide text-zinc-500">
-              Duration
-            </p>
-
-            <p className="font-medium">{trail.duration}</p>
-          </div>
-        </div>
-
-        {/* Capacity */}
-
+      <div className="mt-6 space-y-4 border-t border-zinc-100 pt-5 dark:border-zinc-800">
         <div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-300">
           <Users className="h-5 w-5 text-zinc-400" />
 
           <div>
             <p className="text-xs uppercase tracking-wide text-zinc-500">
-              Daily Capacity
+              Maximum Capacity
             </p>
 
-            <p className="font-medium">{trail.capacity} hikers/day</p>
+            <p className="font-medium">
+              {trail.max_capacity.toLocaleString()} visitors
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-zinc-600 dark:text-zinc-300">
+          <CalendarDays className="h-5 w-5 text-zinc-400" />
+
+          <div>
+            <p className="text-xs uppercase tracking-wide text-zinc-500">
+              Last Updated
+            </p>
+
+            <p className="font-medium">
+              {trail.updated_at
+                ? new Date(trail.updated_at).toLocaleDateString("en-PH", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "Not available"}
+            </p>
           </div>
         </div>
       </div>

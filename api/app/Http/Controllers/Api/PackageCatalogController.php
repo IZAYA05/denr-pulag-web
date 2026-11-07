@@ -11,6 +11,7 @@ class PackageCatalogController extends Controller
     public function index(): JsonResponse
     {
         $packages = OrganizerPackage::with('services')
+            ->where('is_walk_in', false)
             ->where('status', 'ACTIVE')
             ->latest()
             ->get();

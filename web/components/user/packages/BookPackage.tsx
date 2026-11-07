@@ -1,4 +1,5 @@
 "use client";
+import HikingDatePicker, { type BookingCapacitySummary } from "./HikingDatePicker";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -171,10 +172,11 @@ export default function BookPackage({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [bookingNumber, setBookingNumber] = useState("");
+  const [capacitySummary, setCapacitySummary] = useState<BookingCapacitySummary | null>(null);
 
   const apiBaseUrl =
     process.env.NEXT_PUBLIC_LARAVEL_API_URL ||
-    "http://localhost:8000";
+    "http://localhost:18000";
 
   const accessToken = session?.user?.accessToken;
 
@@ -186,15 +188,14 @@ export default function BookPackage({
     [packages, packageId],
   );
 
-  const today = localDateString(new Date());
-
-  const latestBookingDate = useMemo(() => {
+  const minimumHikingDate = useMemo(() => {
     const date = new Date();
     date.setHours(12, 0, 0, 0);
-    date.setMonth(date.getMonth() + 1);
+    date.setDate(date.getDate() + 30);
 
     return localDateString(date);
   }, []);
+
 
   const maximumTourists = Math.min(
     12,
@@ -402,15 +403,18 @@ export default function BookPackage({
       return;
     }
 
-    if (!hikingDate || hikingDate < today) {
-      setError("Please select a valid hiking date.");
+    if (!hikingDate || hikingDate < minimumHikingDate) {
+      setError("Please select a hiking date at least 30 days from today.");
       return;
     }
 
-    if (hikingDate > latestBookingDate) {
-      setError(
-        "Bookings can only be made up to one month in advance.",
-      );
+    if (!capacitySummary || capacitySummary.date !== hikingDate) {
+      setError("Please wait for visitor capacity to load for the selected date.");
+      return;
+    }
+
+    if (capacitySummary.is_full || tourists.length > capacitySummary.remaining_capacity) {
+      setError("There are not enough visitor slots remaining for your group on this hiking date.");
       return;
     }
 
@@ -650,30 +654,22 @@ export default function BookPackage({
                     <option key={trail.id} value={trail.id}>
                       {trail.name}
                       {trail.difficulty
-                        ? ` — ${trail.difficulty}`
+                        ? ` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${trail.difficulty}`
                         : ""}
                     </option>
                   ))}
                 </select>
               </label>
 
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 sm:col-span-2">
-                Hiking date <span className="text-red-500">*</span>
-                <input
-                  type="date"
-                  required
-                  min={today}
-                  max={latestBookingDate}
-                  value={hikingDate}
-                  onChange={(event) => setHikingDate(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none focus:border-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
-                />
-                <span className="mt-2 block text-xs font-normal text-zinc-500 dark:text-zinc-400">
-                  Bookings are limited to dates within the next month.
-                  Dates may still be subject to DENR capacity and holiday
-                  restrictions.
-                </span>
-              </label>
+            <HikingDatePicker
+              date={hikingDate}
+              minimumDate={minimumHikingDate}
+              apiBaseUrl={apiBaseUrl}
+              accessToken={accessToken}
+              visitorCount={tourists.length}
+              onDateChange={setHikingDate}
+              onCapacityChange={setCapacitySummary}
+            />
             </div>
 
             {selectedPackage && (
@@ -963,7 +959,7 @@ export default function BookPackage({
                 {selectedPackage?.name || "Selected package"}
               </span>
               <span className="text-right font-medium text-emerald-950 dark:text-emerald-100">
-                {formatPrice(Number(selectedPackage?.price))} ×{" "}
+                {formatPrice(Number(selectedPackage?.price))} ÃƒÆ’Ã¢â‚¬â€{" "}
                 {tourists.length} {tourists.length === 1 ? "person" : "people"}
               </span>
             </div>
@@ -994,7 +990,12 @@ export default function BookPackage({
               submitting ||
               !selectedPackage ||
               trails.length === 0 ||
-              packages.length === 0
+              packages.length === 0 ||
+              !hikingDate ||
+              !capacitySummary ||
+              capacitySummary.date !== hikingDate ||
+              capacitySummary.is_full ||
+              tourists.length > capacitySummary.remaining_capacity
             }
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-4 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
           >

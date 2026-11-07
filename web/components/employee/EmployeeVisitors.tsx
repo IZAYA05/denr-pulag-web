@@ -8,7 +8,6 @@ import {
   Users,
   UserRound,
   CalendarDays,
-  MapPin,
   ClipboardList,
 } from "lucide-react";
 
@@ -21,6 +20,7 @@ type Visitor = {
   booking_number: string;
   hiking_date: string;
   booking_status: string;
+  denr_status?: string | null;
   trail?: string | null;
   full_name: string;
   age?: number | null;
@@ -36,6 +36,13 @@ type VisitorsResponse = {
   visitors?: Visitor[];
   message?: string;
 };
+
+type StatusFilter =
+  | "ALL"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED";
 
 const API_URL =
   process.env.NEXT_PUBLIC_LARAVEL_API_URL || "http://localhost:18000";
@@ -68,10 +75,74 @@ function statusClass(status: string) {
     case "PENDING":
       return "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300";
     case "REJECTED":
-    case "CANCELLED":
       return "bg-red-50 text-red-700 dark:bg-red-400/10 dark:text-red-300";
+    case "CANCELLED":
+      return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
     default:
       return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
+  }
+}
+
+function isConfirmed(visitor: Visitor) {
+  if (visitor.source === "DIRECT") {
+    return visitor.booking_status.toUpperCase() === "APPROVED";
+  }
+
+  return (
+    visitor.booking_status.toUpperCase() === "APPROVED" &&
+    visitor.denr_status?.toUpperCase() === "APPROVED"
+  );
+}
+
+function getPackageDenrStatus(visitor: Visitor) {
+  if (visitor.booking_status.toUpperCase() !== "APPROVED") {
+    return null;
+  }
+
+  return visitor.denr_status || "PENDING";
+}
+
+function getPackageDenrLabel(visitor: Visitor) {
+  const status = getPackageDenrStatus(visitor);
+
+  return status ? formatStatus(status) : null;
+}
+
+function matchesStatus(visitor: Visitor, filter: StatusFilter) {
+  if (filter === "ALL") return true;
+
+  const organizerStatus = visitor.booking_status.toUpperCase();
+  const denrStatus = visitor.denr_status?.toUpperCase();
+
+  if (visitor.source === "DIRECT") {
+    return organizerStatus === filter;
+  }
+
+  switch (filter) {
+    case "PENDING":
+      return (
+        organizerStatus === "PENDING" ||
+        (organizerStatus === "APPROVED" &&
+          (!denrStatus || denrStatus === "PENDING"))
+      );
+
+    case "APPROVED":
+      return (
+        organizerStatus === "APPROVED" &&
+        denrStatus === "APPROVED"
+      );
+
+    case "REJECTED":
+      return (
+        organizerStatus === "REJECTED" ||
+        (organizerStatus === "APPROVED" && denrStatus === "REJECTED")
+      );
+
+    case "CANCELLED":
+      return organizerStatus === "CANCELLED";
+
+    default:
+      return false;
   }
 }
 
@@ -100,10 +171,58 @@ function StatCard({
             {description}
           </p>
         </div>
+
         <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
           {icon}
         </div>
       </div>
+    </div>
+  );
+}
+
+function StatusBadge({
+  status,
+  label,
+}: {
+  status: string;
+  label?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(status)}`}
+    >
+      {label || formatStatus(status)}
+    </span>
+  );
+}
+
+function BookingStatusDisplay({ visitor }: { visitor: Visitor }) {
+  if (visitor.source === "DIRECT") {
+    return <StatusBadge status={visitor.booking_status} />;
+  }
+
+  const denrStatus = getPackageDenrStatus(visitor);
+
+  return (
+    <div className="flex flex-col items-start gap-2">
+      <div>
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+          Organizer
+        </p>
+        <StatusBadge status={visitor.booking_status} />
+      </div>
+
+      {denrStatus && (
+        <div>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+            DENR
+          </p>
+          <StatusBadge
+            status={denrStatus}
+            label={getPackageDenrLabel(visitor) || "Pending"}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -115,44 +234,61 @@ export default function EmployeeVisitors() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<"ALL" | "DIRECT" | "PACKAGE">("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
-  const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<
+    "ALL" | "DIRECT" | "PACKAGE"
+  >("ALL");
+  const [statusFilter, setStatusFilter] =
+    useState<StatusFilter>("ALL");
+  const [selectedVisitor, setSelectedVisitor] =
+    useState<Visitor | null>(null);
 
-  const fetchVisitors = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch(`${API_URL}/api/employee/visitors`, {
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        cache: "no-store",
-        signal,
-      });
-
-      const data: VisitorsResponse = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to load visitor records.");
+  const fetchVisitors = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!accessToken) {
+        setVisitors([]);
+        setLoading(false);
+        return;
       }
 
-      setVisitors(data.visitors || []);
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      setError(
-        err instanceof Error ? err.message : "Unable to load visitor records."
-      );
-    } finally {
-      if (!signal?.aborted) setLoading(false);
-    }
-  }, [accessToken]);
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch(`${API_URL}/api/employee/visitors`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          cache: "no-store",
+          signal,
+        });
+
+        const data: VisitorsResponse = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to load visitor records.");
+        }
+
+        setVisitors(Array.isArray(data.visitors) ? data.visitors : []);
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load visitor records."
+        );
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [accessToken]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
     void fetchVisitors(controller.signal);
+
     return () => controller.abort();
   }, [fetchVisitors]);
 
@@ -160,15 +296,14 @@ export default function EmployeeVisitors() {
     const query = search.trim().toLowerCase();
 
     return visitors.filter((visitor) => {
-      if (sourceFilter !== "ALL" && visitor.source !== sourceFilter) return false;
-
       if (
-        statusFilter !== "ALL" &&
-        visitor.booking_status.toUpperCase() !== statusFilter
+        sourceFilter !== "ALL" &&
+        visitor.source !== sourceFilter
       ) {
         return false;
       }
 
+      if (!matchesStatus(visitor, statusFilter)) return false;
       if (!query) return true;
 
       return [
@@ -178,30 +313,61 @@ export default function EmployeeVisitors() {
         visitor.nationality,
         visitor.contact_number,
         visitor.address,
-      ].some((value) => String(value || "").toLowerCase().includes(query));
+      ].some((value) =>
+        String(value || "").toLowerCase().includes(query)
+      );
     });
   }, [visitors, search, sourceFilter, statusFilter]);
 
-  const counts = useMemo(() => ({
-    total: visitors.length,
-    direct: visitors.filter((visitor) => visitor.source === "DIRECT").length,
-    package: visitors.filter((visitor) => visitor.source === "PACKAGE").length,
-    approved: visitors.filter((visitor) => visitor.booking_status === "APPROVED").length,
-  }), [visitors]);
+  const counts = useMemo(
+    () => ({
+      total: visitors.length,
+      direct: visitors.filter(
+        (visitor) => visitor.source === "DIRECT"
+      ).length,
+      package: visitors.filter(
+        (visitor) => visitor.source === "PACKAGE"
+      ).length,
+      confirmed: visitors.filter(isConfirmed).length,
+    }),
+    [visitors]
+  );
 
   function exportCsv() {
-    const columns: { label: string; value: (visitor: Visitor) => string | number }[] = [
+    const columns: {
+      label: string;
+      value: (visitor: Visitor) => string | number;
+    }[] = [
       { label: "Visitor Name", value: (visitor) => visitor.full_name },
       { label: "Age", value: (visitor) => visitor.age ?? "" },
       { label: "Gender", value: (visitor) => visitor.gender ?? "" },
-      { label: "Nationality", value: (visitor) => visitor.nationality ?? "" },
-      { label: "Contact Number", value: (visitor) => visitor.contact_number ?? "" },
+      {
+        label: "Nationality",
+        value: (visitor) => visitor.nationality ?? "",
+      },
+      {
+        label: "Contact Number",
+        value: (visitor) => visitor.contact_number ?? "",
+      },
       { label: "Address", value: (visitor) => visitor.address ?? "" },
-      { label: "Booking Number", value: (visitor) => visitor.booking_number },
+      {
+        label: "Booking Number",
+        value: (visitor) => visitor.booking_number,
+      },
       { label: "Booking Type", value: (visitor) => visitor.source },
       { label: "Trail", value: (visitor) => visitor.trail ?? "" },
       { label: "Hiking Date", value: (visitor) => visitor.hiking_date },
-      { label: "Booking Status", value: (visitor) => visitor.booking_status },
+      {
+        label: "Organizer / Reservation Status",
+        value: (visitor) => visitor.booking_status,
+      },
+      {
+        label: "DENR Status",
+        value: (visitor) =>
+          visitor.source === "PACKAGE"
+            ? visitor.denr_status ?? ""
+            : "",
+      },
     ];
 
     const escapeCsv = (value: string | number) =>
@@ -210,18 +376,23 @@ export default function EmployeeVisitors() {
     const csv = [
       columns.map((column) => escapeCsv(column.label)).join(","),
       ...filteredVisitors.map((visitor) =>
-        columns.map((column) => escapeCsv(column.value(visitor))).join(",")
+        columns
+          .map((column) => escapeCsv(column.value(visitor)))
+          .join(",")
       ),
     ].join("\r\n");
 
     const blob = new Blob(["\uFEFF", csv], {
       type: "text/csv;charset=utf-8;",
     });
+
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
+
     anchor.href = url;
     anchor.download = "e-pulag-visitors.csv";
     anchor.click();
+
     URL.revokeObjectURL(url);
   }
 
@@ -236,8 +407,9 @@ export default function EmployeeVisitors() {
             Visitor Records
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-            Search visitor information across direct reservations and package
-            bookings, including hiking schedules and booking status.
+            Search visitor information across direct reservations and
+            package bookings, including hiking schedules and approval
+            decisions.
           </p>
         </div>
 
@@ -251,13 +423,17 @@ export default function EmployeeVisitors() {
             <Download size={16} />
             Export CSV
           </button>
+
           <button
             type="button"
             onClick={() => void fetchVisitors()}
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <RefreshCw
+              size={16}
+              className={loading ? "animate-spin" : ""}
+            />
             Refresh
           </button>
         </div>
@@ -271,22 +447,22 @@ export default function EmployeeVisitors() {
           description="All recorded visitors"
         />
         <StatCard
-          label="Direct Reservations"
+          label="Direct Visitors"
           value={counts.direct}
           icon={<UserRound size={21} />}
-          description="Direct booking records"
+          description="Direct reservation records"
         />
         <StatCard
           label="Package Visitors"
           value={counts.package}
           icon={<ClipboardList size={21} />}
-          description="Organizer package bookings"
+          description="Package booking records"
         />
         <StatCard
-          label="Approved Bookings"
-          value={counts.approved}
+          label="Confirmed Visitors"
+          value={counts.confirmed}
           icon={<CalendarDays size={21} />}
-          description="Visitors under approved bookings"
+          description="Bookings approved by required reviewers"
         />
       </section>
 
@@ -323,7 +499,9 @@ export default function EmployeeVisitors() {
                 <select
                   value={sourceFilter}
                   onChange={(event) =>
-                    setSourceFilter(event.target.value as "ALL" | "DIRECT" | "PACKAGE")
+                    setSourceFilter(
+                      event.target.value as "ALL" | "DIRECT" | "PACKAGE"
+                    )
                   }
                   className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-700 outline-none focus:border-emerald-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
                 >
@@ -337,12 +515,14 @@ export default function EmployeeVisitors() {
                 <span className="sr-only">Filter booking status</span>
                 <select
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as StatusFilter)
+                  }
                   className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-700 outline-none focus:border-emerald-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
                 >
                   <option value="ALL">All statuses</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="APPROVED">Approved</option>
+                  <option value="PENDING">Pending review</option>
+                  <option value="APPROVED">Fully approved</option>
                   <option value="REJECTED">Rejected</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
@@ -381,9 +561,12 @@ export default function EmployeeVisitors() {
               No visitors found
             </h3>
             <p className="mt-1 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
-              Try changing your search or filters, or refresh to check for new records.
+              Try changing your search or filters, or refresh to check for
+              new records.
             </p>
-            {(search || sourceFilter !== "ALL" || statusFilter !== "ALL") && (
+            {(search ||
+              sourceFilter !== "ALL" ||
+              statusFilter !== "ALL") && (
               <button
                 type="button"
                 onClick={() => {
@@ -399,7 +582,7 @@ export default function EmployeeVisitors() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left">
+            <table className="w-full min-w-[950px] text-left">
               <thead className="bg-zinc-50 dark:bg-zinc-950/60">
                 <tr className="border-b border-zinc-200 dark:border-zinc-800">
                   {[
@@ -408,7 +591,7 @@ export default function EmployeeVisitors() {
                     "Trail",
                     "Hiking date",
                     "Type",
-                    "Status",
+                    "Approval status",
                     "Details",
                   ].map((heading) => (
                     <th
@@ -431,7 +614,10 @@ export default function EmployeeVisitors() {
                         {visitor.full_name}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {[visitor.age ? `${visitor.age} years` : "", visitor.gender]
+                        {[
+                          visitor.age ? `${visitor.age} years` : "",
+                          visitor.gender,
+                        ]
                           .filter(Boolean)
                           .join(" · ") || "Visitor"}
                       </p>
@@ -462,11 +648,7 @@ export default function EmployeeVisitors() {
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass(visitor.booking_status)}`}
-                      >
-                        {formatStatus(visitor.booking_status)}
-                      </span>
+                      <BookingStatusDisplay visitor={visitor} />
                     </td>
                     <td className="px-5 py-4">
                       <button
@@ -526,15 +708,31 @@ export default function EmployeeVisitors() {
               {[
                 ["Age", selectedVisitor.age ?? "Not provided"],
                 ["Gender", selectedVisitor.gender || "Not provided"],
-                ["Nationality", selectedVisitor.nationality || "Not provided"],
-                ["Contact number", selectedVisitor.contact_number || "Not provided"],
+                [
+                  "Nationality",
+                  selectedVisitor.nationality || "Not provided",
+                ],
+                [
+                  "Contact number",
+                  selectedVisitor.contact_number || "Not provided",
+                ],
                 ["Address", selectedVisitor.address || "Not provided"],
-                ["Emergency contact", selectedVisitor.emergency_contact || "Not provided"],
-                ["Emergency number", selectedVisitor.emergency_number || "Not provided"],
+                [
+                  "Emergency contact",
+                  selectedVisitor.emergency_contact || "Not provided",
+                ],
+                [
+                  "Emergency number",
+                  selectedVisitor.emergency_number || "Not provided",
+                ],
                 ["Trail", selectedVisitor.trail || "Not assigned"],
                 ["Hiking date", formatDate(selectedVisitor.hiking_date)],
-                ["Booking status", formatStatus(selectedVisitor.booking_status)],
-                ["Booking type", selectedVisitor.source === "DIRECT" ? "Direct reservation" : "Package booking"],
+                [
+                  "Booking type",
+                  selectedVisitor.source === "DIRECT"
+                    ? "Direct reservation"
+                    : "Package booking",
+                ],
                 ["Booking reference", selectedVisitor.booking_number],
               ].map(([label, value]) => (
                 <div key={label} className="min-w-0">
@@ -546,6 +744,36 @@ export default function EmployeeVisitors() {
                   </p>
                 </div>
               ))}
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  {selectedVisitor.source === "PACKAGE"
+                    ? "Organizer status"
+                    : "Reservation status"}
+                </p>
+                <div className="mt-2">
+                  <StatusBadge status={selectedVisitor.booking_status} />
+                </div>
+              </div>
+
+              {selectedVisitor.source === "PACKAGE" && (
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    DENR status
+                  </p>
+                  <div className="mt-2">
+                    {getPackageDenrStatus(selectedVisitor) ? (
+                      <StatusBadge
+                        status={getPackageDenrStatus(selectedVisitor)!}
+                      />
+                    ) : (
+                      <span className="text-sm text-zinc-500">
+                        Not yet submitted for DENR review
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end border-t border-zinc-200 p-5 dark:border-zinc-800">

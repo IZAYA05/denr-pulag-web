@@ -17,19 +17,52 @@ interface ApiUser {
   role: string;
 }
 
-export default function UserStats() {
-  const { data: session } = useSession();
+interface UserStatsData {
+  totalUsers: number;
+  employees: number;
+  organizers: number;
+  regularUsers: number;
+}
 
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [employees, setEmployees] = useState(0);
-  const [organizers, setOrganizers] = useState(0);
-  const [regularUsers, setRegularUsers] = useState(0);
+interface ApiResponse {
+  users?: ApiUser[];
+  message?: string;
+}
+
+const EMPTY_STATS: UserStatsData = {
+  totalUsers: 0,
+  employees: 0,
+  organizers: 0,
+  regularUsers: 0,
+};
+
+export default function UserStats() {
+  const { data: session, status: sessionStatus } = useSession();
+
+  const [stats, setStats] = useState<UserStatsData>(EMPTY_STATS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const accessToken = session?.user?.accessToken;
 
   useEffect(() => {
-    async function fetchUserStats() {
-      const accessToken = session?.user?.accessToken;
+    const controller = new AbortController();
 
-      if (!accessToken) return;
+    async function fetchUserStats() {
+      if (sessionStatus === "loading") {
+        setLoading(true);
+        return;
+      }
+
+      if (!accessToken) {
+        setStats(EMPTY_STATS);
+        setError("You are not authenticated.");
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
 
       try {
         const apiUrl =
@@ -42,18 +75,24 @@ export default function UserStats() {
             Authorization: `Bearer ${accessToken}`,
           },
           cache: "no-store",
+          signal: controller.signal,
         });
 
-        if (!response.ok) {
-          console.error(
-            "Failed to fetch user statistics:",
-            response.status
-          );
-          return;
+        let data: ApiResponse = {};
+
+        try {
+          data = await response.json();
+        } catch {
+          throw new Error("Invalid response from the server.");
         }
 
-        const data = await response.json();
-        const users: ApiUser[] = Array.isArray(data.users)
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Unable to retrieve user statistics."
+          );
+        }
+
+        const users = Array.isArray(data.users)
           ? data.users
           : [];
 
@@ -61,37 +100,50 @@ export default function UserStats() {
           (user) => user.role?.toUpperCase() !== "ADMIN"
         );
 
-        setTotalUsers(manageableUsers.length);
+        if (controller.signal.aborted) return;
 
-        setEmployees(
-          manageableUsers.filter(
+        setStats({
+          totalUsers: manageableUsers.length,
+
+          employees: manageableUsers.filter(
             (user) => user.role?.toUpperCase() === "EMPLOYEE"
-          ).length
-        );
+          ).length,
 
-        setOrganizers(
-          manageableUsers.filter(
+          organizers: manageableUsers.filter(
             (user) => user.role?.toUpperCase() === "ORGANIZER"
-          ).length
-        );
+          ).length,
 
-        setRegularUsers(
-          manageableUsers.filter(
+          regularUsers: manageableUsers.filter(
             (user) => user.role?.toUpperCase() === "USER"
-          ).length
+          ).length,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+
+        setStats(EMPTY_STATS);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to retrieve user statistics."
         );
-      } catch (error) {
-        console.error("Unable to fetch user statistics:", error);
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
     void fetchUserStats();
-  }, [session]);
 
-  const stats = [
+    return () => controller.abort();
+  }, [accessToken, sessionStatus]);
+
+  const statsCards = [
     {
       title: "Total Users",
-      value: totalUsers,
+      value: stats.totalUsers,
       subtitle: "Manageable system accounts",
       icon: Users,
       iconColor: "text-blue-600 dark:text-blue-400",
@@ -99,7 +151,7 @@ export default function UserStats() {
     },
     {
       title: "Employees",
-      value: employees,
+      value: stats.employees,
       subtitle: "System employees",
       icon: ClipboardList,
       iconColor: "text-emerald-600 dark:text-emerald-400",
@@ -107,7 +159,7 @@ export default function UserStats() {
     },
     {
       title: "Organizers",
-      value: organizers,
+      value: stats.organizers,
       subtitle: "System organizers",
       icon: UserRoundCog,
       iconColor: "text-purple-600 dark:text-purple-400",
@@ -115,7 +167,7 @@ export default function UserStats() {
     },
     {
       title: "Users",
-      value: regularUsers,
+      value: stats.regularUsers,
       subtitle: "Registered users",
       icon: UserCog,
       iconColor: "text-amber-600 dark:text-amber-400",
@@ -124,23 +176,46 @@ export default function UserStats() {
   ];
 
   return (
-    <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-      {stats.map((stat) => {
-        const Icon = stat.icon;
+    <section>
+      {error && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400"
+        >
+          {error}
+        </div>
+      )}
 
-        return (
-          <StatCard
-            key={stat.title}
-            title={stat.title}
-            value={stat.value}
-            subtitle={stat.subtitle}
-            iconColor={stat.iconColor}
-            iconBg={stat.iconBg}
-          >
-            <Icon className="h-7 w-7" />
-          </StatCard>
-        );
-      })}
+      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        {statsCards.map((stat) => {
+          const Icon = stat.icon;
+
+          return (
+            <StatCard
+              key={stat.title}
+              title={stat.title}
+              value={
+                loading
+                  ? "..."
+                  : error
+                    ? "—"
+                    : stat.value.toLocaleString()
+              }
+              subtitle={
+                error
+                  ? "Statistics unavailable"
+                  : loading
+                    ? "Loading records..."
+                    : stat.subtitle
+              }
+              iconColor={stat.iconColor}
+              iconBg={stat.iconBg}
+            >
+              <Icon className="h-7 w-7" />
+            </StatCard>
+          );
+        })}
+      </div>
     </section>
   );
 }

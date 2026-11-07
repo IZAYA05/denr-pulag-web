@@ -8,24 +8,17 @@ import Button from "@/components/ui/Button";
 type BookingStatus =
   | "Pending"
   | "Confirmed"
+  | "Rejected"
   | "Cancelled"
   | "Completed";
 
-type CoordinationStatus =
-  | "Not Coordinated"
-  | "Pending"
-  | "Coordinated";
-
 type ApiBookingStatus =
   | "PENDING"
+  | "APPROVED"
   | "CONFIRMED"
+  | "REJECTED"
   | "CANCELLED"
   | "COMPLETED";
-
-type ApiCoordinationStatus =
-  | "NOT_COORDINATED"
-  | "PENDING"
-  | "COORDINATED";
 
 interface ApiPackageService {
   id: number;
@@ -56,7 +49,6 @@ export interface ApiPackageBooking {
   hiking_date: string;
   tourist_count: number;
   status: ApiBookingStatus;
-  coordination_status: ApiCoordinationStatus;
   remarks: string | null;
   package: ApiPackage;
   trail: ApiTrail;
@@ -67,12 +59,16 @@ interface BookingDetailsModalProps {
   onClose: () => void;
 }
 
-function formatBookingStatus(
+export function formatBookingStatus(
   status: ApiBookingStatus
 ): BookingStatus {
   switch (status) {
+    case "APPROVED":
     case "CONFIRMED":
       return "Confirmed";
+
+    case "REJECTED":
+      return "Rejected";
 
     case "CANCELLED":
       return "Cancelled";
@@ -83,22 +79,6 @@ function formatBookingStatus(
     case "PENDING":
     default:
       return "Pending";
-  }
-}
-
-function formatCoordinationStatus(
-  status: ApiCoordinationStatus
-): CoordinationStatus {
-  switch (status) {
-    case "COORDINATED":
-      return "Coordinated";
-
-    case "PENDING":
-      return "Pending";
-
-    case "NOT_COORDINATED":
-    default:
-      return "Not Coordinated";
   }
 }
 
@@ -113,6 +93,7 @@ function formatDate(date: string) {
     month: "short",
     day: "2-digit",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -127,37 +108,20 @@ function formatCurrency(amount: number) {
 function getBookingStatusVariant(status: BookingStatus) {
   switch (status) {
     case "Confirmed":
-      return "success";
+      return "success" as const;
 
     case "Pending":
-      return "warning";
+      return "warning" as const;
 
     case "Completed":
-      return "info";
+      return "info" as const;
 
     case "Cancelled":
-      return "danger";
+    case "Rejected":
+      return "danger" as const;
 
     default:
-      return "secondary";
-  }
-}
-
-function getCoordinationVariant(
-  status: CoordinationStatus
-) {
-  switch (status) {
-    case "Coordinated":
-      return "success";
-
-    case "Pending":
-      return "warning";
-
-    case "Not Coordinated":
-      return "secondary";
-
-    default:
-      return "secondary";
+      return "secondary" as const;
   }
 }
 
@@ -168,6 +132,8 @@ export default function BookingDetailsModal({
   const packageCapacity = Number(
     booking.package?.max_tourists ?? 12
   );
+
+  const bookingStatus = formatBookingStatus(booking.status);
 
   return (
     <div
@@ -260,31 +226,9 @@ export default function BookingDetailsModal({
 
               <div className="mt-2">
                 <Badge
-                  variant={getBookingStatusVariant(
-                    formatBookingStatus(booking.status)
-                  )}
+                  variant={getBookingStatusVariant(bookingStatus)}
                 >
-                  {formatBookingStatus(booking.status)}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800 sm:col-span-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                DENR Coordination
-              </p>
-
-              <div className="mt-2">
-                <Badge
-                  variant={getCoordinationVariant(
-                    formatCoordinationStatus(
-                      booking.coordination_status
-                    )
-                  )}
-                >
-                  {formatCoordinationStatus(
-                    booking.coordination_status
-                  )}
+                  {bookingStatus}
                 </Badge>
               </div>
             </div>

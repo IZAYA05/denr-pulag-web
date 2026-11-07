@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useEmployeeDashboard } from "@/components/employee/EmployeeDashboardClient";
 
 type BookingStats = {
@@ -9,14 +9,25 @@ type BookingStats = {
   approved: number;
   rejected: number;
   confirmed_visitors: number;
+  awaiting_organizer?: number;
+  awaiting_denr?: number;
+  rejected_by_organizer?: number;
+  rejected_by_denr?: number;
 };
 
 type ReportResponse = {
   date?: string;
   direct_reservations?: Partial<BookingStats>;
   package_bookings?: Partial<BookingStats>;
-  total_confirmed_visitors?: number;
+  confirmed_visitors?: number;
   message?: string;
+};
+
+type BreakdownItem = {
+  label: string;
+  value: number;
+  color: string;
+  text: string;
 };
 
 const API_URL =
@@ -45,13 +56,22 @@ function formatDate(value: string) {
   });
 }
 
+function safeNumber(value: unknown): number {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function normalizeStats(stats?: Partial<BookingStats>): BookingStats {
   return {
-    total: Number(stats?.total ?? 0),
-    pending: Number(stats?.pending ?? 0),
-    approved: Number(stats?.approved ?? 0),
-    rejected: Number(stats?.rejected ?? 0),
-    confirmed_visitors: Number(stats?.confirmed_visitors ?? 0),
+    total: safeNumber(stats?.total),
+    pending: safeNumber(stats?.pending),
+    approved: safeNumber(stats?.approved),
+    rejected: safeNumber(stats?.rejected),
+    confirmed_visitors: safeNumber(stats?.confirmed_visitors),
+    awaiting_organizer: safeNumber(stats?.awaiting_organizer),
+    awaiting_denr: safeNumber(stats?.awaiting_denr),
+    rejected_by_organizer: safeNumber(stats?.rejected_by_organizer),
+    rejected_by_denr: safeNumber(stats?.rejected_by_denr),
   };
 }
 
@@ -64,7 +84,7 @@ function StatCard({
   label: string;
   value: number;
   description: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
@@ -73,9 +93,11 @@ function StatCard({
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
             {label}
           </p>
+
           <p className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
             {value.toLocaleString()}
           </p>
+
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             {description}
           </p>
@@ -93,37 +115,79 @@ function BookingBreakdown({
   title,
   description,
   stats,
+  type,
 }: {
   title: string;
   description: string;
   stats: BookingStats;
+  type: "direct" | "package";
 }) {
-  const items = [
-    {
-      label: "Total Bookings",
-      value: stats.total,
-      color: "bg-gray-400",
-      text: "text-gray-900 dark:text-white",
-    },
-    {
-      label: "Pending",
-      value: stats.pending,
-      color: "bg-amber-500",
-      text: "text-amber-700 dark:text-amber-300",
-    },
-    {
-      label: "Approved",
-      value: stats.approved,
-      color: "bg-emerald-500",
-      text: "text-emerald-700 dark:text-emerald-300",
-    },
-    {
-      label: "Rejected",
-      value: stats.rejected,
-      color: "bg-red-500",
-      text: "text-red-700 dark:text-red-300",
-    },
-  ];
+  const items: BreakdownItem[] =
+    type === "direct"
+      ? [
+          {
+            label: "Total Reservations",
+            value: stats.total,
+            color: "bg-gray-400",
+            text: "text-gray-900 dark:text-white",
+          },
+          {
+            label: "Awaiting DENR",
+            value: stats.pending,
+            color: "bg-amber-500",
+            text: "text-amber-700 dark:text-amber-300",
+          },
+          {
+            label: "DENR Approved",
+            value: stats.approved,
+            color: "bg-emerald-500",
+            text: "text-emerald-700 dark:text-emerald-300",
+          },
+          {
+            label: "DENR Rejected",
+            value: stats.rejected,
+            color: "bg-red-500",
+            text: "text-red-700 dark:text-red-300",
+          },
+        ]
+      : [
+          {
+            label: "Total Package Bookings",
+            value: stats.total,
+            color: "bg-gray-400",
+            text: "text-gray-900 dark:text-white",
+          },
+          {
+            label: "Awaiting Organizer",
+            value: stats.awaiting_organizer ?? 0,
+            color: "bg-amber-500",
+            text: "text-amber-700 dark:text-amber-300",
+          },
+          {
+            label: "Awaiting DENR",
+            value: stats.awaiting_denr ?? 0,
+            color: "bg-blue-500",
+            text: "text-blue-700 dark:text-blue-300",
+          },
+          {
+            label: "DENR Approved",
+            value: stats.approved,
+            color: "bg-emerald-500",
+            text: "text-emerald-700 dark:text-emerald-300",
+          },
+          {
+            label: "Rejected by Organizer",
+            value: stats.rejected_by_organizer ?? 0,
+            color: "bg-red-400",
+            text: "text-red-700 dark:text-red-300",
+          },
+          {
+            label: "Rejected by DENR",
+            value: stats.rejected_by_denr ?? 0,
+            color: "bg-red-600",
+            text: "text-red-700 dark:text-red-300",
+          },
+        ];
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
@@ -131,6 +195,7 @@ function BookingBreakdown({
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           {title}
         </h2>
+
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {description}
         </p>
@@ -139,7 +204,9 @@ function BookingBreakdown({
       <div className="mt-6 space-y-5">
         {items.map((item) => {
           const percentage =
-            stats.total > 0 ? (item.value / stats.total) * 100 : 0;
+            stats.total > 0
+              ? Math.min((item.value / stats.total) * 100, 100)
+              : 0;
 
           return (
             <div key={item.label}>
@@ -147,6 +214,7 @@ function BookingBreakdown({
                 <span className="text-sm text-gray-600 dark:text-gray-300">
                   {item.label}
                 </span>
+
                 <span className={`text-sm font-semibold ${item.text}`}>
                   {item.value.toLocaleString()}
                 </span>
@@ -174,10 +242,15 @@ function BookingBreakdown({
         <span className="text-sm text-gray-500 dark:text-gray-400">
           Confirmed visitors
         </span>
+
         <span className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
           {stats.confirmed_visitors.toLocaleString()}
         </span>
       </div>
+
+      <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+        Total bookings may also include cancelled or completed records.
+      </p>
     </section>
   );
 }
@@ -192,7 +265,11 @@ export default function EmployeeReports() {
 
   const loadReport = useCallback(
     async (signal?: AbortSignal) => {
-      if (!accessToken) return;
+      if (!accessToken) {
+        setReport(null);
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       setError("");
@@ -225,9 +302,12 @@ export default function EmployeeReports() {
             ? err.message
             : "An unexpected error occurred while loading the report."
         );
+
         setReport(null);
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
       }
     },
     [accessToken, date]
@@ -245,12 +325,17 @@ export default function EmployeeReports() {
   const packageStats = normalizeStats(report?.package_bookings);
 
   const totalBookings = directStats.total + packageStats.total;
-  const totalPending = directStats.pending + packageStats.pending;
-  const totalApproved = directStats.approved + packageStats.approved;
-  const totalRejected = directStats.rejected + packageStats.rejected;
 
-  const confirmedVisitors = Number(
-    report?.total_confirmed_visitors ??
+  const awaitingOrganizer = packageStats.awaiting_organizer ?? 0;
+
+  const awaitingDenr =
+    directStats.pending + (packageStats.awaiting_denr ?? 0);
+
+  const totalApproved = directStats.approved + packageStats.approved;
+
+  // Laravel returns "confirmed_visitors" at the report's root level.
+  const confirmedVisitors = safeNumber(
+    report?.confirmed_visitors ??
       directStats.confirmed_visitors + packageStats.confirmed_visitors
   );
 
@@ -260,43 +345,107 @@ export default function EmployeeReports() {
       value: totalBookings,
       description: "Direct and package bookings",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
           <rect x="3" y="5" width="18" height="16" rx="2" />
           <path d="M16 3v4M8 3v4M3 11h18" strokeLinecap="round" />
         </svg>
       ),
     },
     {
-      label: "Pending Bookings",
-      value: totalPending,
-      description: "Awaiting review",
+      label: "Awaiting Organizer",
+      value: awaitingOrganizer,
+      description: "Package bookings awaiting Organizer",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="12" r="9" />
-          <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M12 7v5l3 2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       ),
     },
     {
-      label: "Approved Bookings",
-      value: totalApproved,
-      description: "Approved across both sources",
+      label: "Awaiting DENR",
+      value: awaitingDenr,
+      description: "Direct and Organizer-approved packages",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="12" r="9" />
-          <path d="m8 12 2.5 2.5L16 9" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M12 7v5l3 2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+    },
+    {
+      label: "DENR Approved",
+      value: totalApproved,
+      description: "Final approved bookings",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="9" />
+          <path
+            d="m8 12 2.5 2.5L16 9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       ),
     },
     {
       label: "Confirmed Visitors",
       value: confirmedVisitors,
-      description: "Visitors on approved bookings",
+      description: "Visitors on final approved bookings",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true">
-          <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeLinecap="round" />
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
+          <path
+            d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+            strokeLinecap="round"
+          />
           <circle cx="10" cy="7" r="4" />
-          <path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" />
+          <path
+            d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
+            strokeLinecap="round"
+          />
         </svg>
       ),
     },
@@ -309,9 +458,11 @@ export default function EmployeeReports() {
           <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
             Employee Portal
           </p>
+
           <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
             Daily Reports
           </h1>
+
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Review daily booking activity and visitor totals.
           </p>
@@ -324,6 +475,7 @@ export default function EmployeeReports() {
           >
             Select report date
           </label>
+
           <input
             id="report-date"
             type="date"
@@ -340,6 +492,7 @@ export default function EmployeeReports() {
           <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
             Report for
           </p>
+
           <p className="mt-1 text-lg font-bold text-emerald-950 dark:text-emerald-100">
             {formatDate(date)}
           </p>
@@ -351,8 +504,19 @@ export default function EmployeeReports() {
           disabled={loading || !accessToken}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
-            <path d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4M4 13a8 8 0 0 0 14.9 4M20 20v-4h-4" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            className="h-4 w-4"
+            aria-hidden="true"
+          >
+            <path
+              d="M20 11a8 8 0 0 0-14.9-4M4 4v4h4M4 13a8 8 0 0 0 14.9 4M20 20v-4h-4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           Refresh Report
         </button>
@@ -369,8 +533,8 @@ export default function EmployeeReports() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((item) => (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3, 4, 5].map((item) => (
             <div
               key={item}
               className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800"
@@ -379,7 +543,7 @@ export default function EmployeeReports() {
         </div>
       ) : report ? (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {summaryCards.map((card) => (
               <StatCard
                 key={card.label}
@@ -394,14 +558,16 @@ export default function EmployeeReports() {
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <BookingBreakdown
               title="Direct Reservations"
-              description="Daily statistics for direct visitor reservations."
+              description="Direct visitor reservations reviewed by DENR."
               stats={directStats}
+              type="direct"
             />
 
             <BookingBreakdown
               title="Package Bookings"
-              description="Daily statistics for bookings made through packages."
+              description="Package booking decisions across Organizer and DENR review stages."
               stats={packageStats}
+              type="package"
             />
           </div>
 
@@ -409,24 +575,37 @@ export default function EmployeeReports() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Booking Status Summary
             </h2>
+
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Combined status totals for the selected report date.
+              Combined booking decisions for the selected hiking date.
             </p>
 
-            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-amber-50 p-4 dark:bg-amber-900/20">
                 <p className="text-sm text-amber-800 dark:text-amber-300">
-                  Pending
+                  Awaiting Organizer
                 </p>
+
                 <p className="mt-1 text-2xl font-bold text-amber-900 dark:text-amber-200">
-                  {totalPending.toLocaleString()}
+                  {awaitingOrganizer.toLocaleString()}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  Awaiting DENR
+                </p>
+
+                <p className="mt-1 text-2xl font-bold text-blue-900 dark:text-blue-200">
+                  {awaitingDenr.toLocaleString()}
                 </p>
               </div>
 
               <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
                 <p className="text-sm text-emerald-800 dark:text-emerald-300">
-                  Approved
+                  DENR Approved
                 </p>
+
                 <p className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-200">
                   {totalApproved.toLocaleString()}
                 </p>
@@ -436,8 +615,9 @@ export default function EmployeeReports() {
                 <p className="text-sm text-red-800 dark:text-red-300">
                   Rejected
                 </p>
+
                 <p className="mt-1 text-2xl font-bold text-red-900 dark:text-red-200">
-                  {totalRejected.toLocaleString()}
+                  {(directStats.rejected + packageStats.rejected).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -449,6 +629,7 @@ export default function EmployeeReports() {
             <p className="font-semibold text-gray-900 dark:text-white">
               No report data available
             </p>
+
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Select a date or refresh the report.
             </p>

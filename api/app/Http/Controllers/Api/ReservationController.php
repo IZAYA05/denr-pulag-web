@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Models\Trail;
-use Carbon\Carbon;
+use App\Models\User;
+use App\Notifications\SystemNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 class ReservationController extends Controller
 {
@@ -110,25 +112,6 @@ class ReservationController extends Controller
         ]);
 
         /*
-         * Check if the hiking date is within
-         * one month from today.
-         */
-        $hikingDate = Carbon::parse(
-            $validated['hiking_date']
-        )->startOfDay();
-
-        $maximumBookingDate = Carbon::today()
-            ->addMonth()
-            ->endOfDay();
-
-        if ($hikingDate->gt($maximumBookingDate)) {
-            return response()->json([
-                'message' =>
-                    'Reservations can only be made up to one month in advance.',
-            ], 422);
-        }
-
-        /*
          * Check if the selected trail exists
          * and is currently active.
          */
@@ -145,47 +128,12 @@ class ReservationController extends Controller
             ], 422);
         }
 
-        /*
-         * Count participants in the current
-         * reservation.
-         */
         $participantCount = count(
             $validated['participants']
         );
 
         /*
-         * Get the total number of participants
-         * already reserved for the selected date.
-         *
-         * Only PENDING and APPROVED reservations
-         * consume visitor capacity.
-         */
-        $currentParticipants = Reservation::where(
-            'hiking_date',
-            $validated['hiking_date']
-        )
-            ->whereIn('status', [
-                'PENDING',
-                'APPROVED',
-            ])
-            ->sum('total_participants');
-
-        /*
-         * Check if adding this reservation would
-         * exceed the maximum daily capacity.
-         */
-        if (
-            $currentParticipants + $participantCount >
-            $trail->max_capacity
-        ) {
-            return response()->json([
-                'message' =>
-                    'The maximum visitor capacity for this date has been reached.',
-            ], 422);
-        }
-
-        /*
-         * Create the reservation and participants
+         * Create reservation and participants
          * inside a database transaction.
          */
         $reservation = DB::transaction(function () use (
@@ -198,10 +146,6 @@ class ReservationController extends Controller
                 Str::random(8)
             );
 
-            /*
-             * Make sure the reservation number
-             * is unique.
-             */
             while (
                 Reservation::where(
                     'reservation_number',
@@ -213,9 +157,6 @@ class ReservationController extends Controller
                 );
             }
 
-            /*
-             * Create the reservation.
-             */
             $reservation = Reservation::create([
                 'reservation_number' => $reservationNumber,
                 'group_leader_name' =>
@@ -235,10 +176,6 @@ class ReservationController extends Controller
                     $trail->id,
             ]);
 
-            /*
-             * Create all participants belonging
-             * to this reservation.
-             */
             $reservation->participants()->createMany(
                 $validated['participants']
             );
@@ -250,6 +187,29 @@ class ReservationController extends Controller
             'trail',
             'participants',
         ]);
+
+        /*
+         * Notify active ADMIN and EMPLOYEE accounts
+         * after successful reservation creation.
+         */
+        $customer = $request->user();
+
+        $this->notifyDenrStaff(
+            new SystemNotification(
+                'New Reservation Request',
+                "{$customer->first_name} {$customer->last_name} submitted reservation {$reservation->reservation_number}.",
+                'reservation',
+                null,
+                [
+                    'reservation_id' => $reservation->id,
+                    'reservation_number' => $reservation->reservation_number,
+                    'customer_id' => $customer->id,
+                    'hiking_date' => $reservation->hiking_date,
+                    'trail_name' => $trail->name,
+                    'status' => 'PENDING',
+                ]
+            )
+        );
 
         return response()->json([
             'message' =>
@@ -282,6 +242,27 @@ class ReservationController extends Controller
         $reservation->update([
             'status' => 'CANCELLED',
         ]);
+
+        /*
+         * Notify active DENR staff after successful cancellation.
+         */
+        $customer = $request->user();
+
+        $this->notifyDenrStaff(
+            new SystemNotification(
+                'Reservation Cancelled',
+                "{$customer->first_name} {$customer->last_name} cancelled reservation {$reservation->reservation_number}.",
+                'reservation',
+                null,
+                [
+                    'reservation_id' => $reservation->id,
+                    'reservation_number' => $reservation->reservation_number,
+                    'customer_id' => $customer->id,
+                    'hiking_date' => $reservation->hiking_date,
+                    'status' => 'CANCELLED',
+                ]
+            )
+        );
 
         return response()->json([
             'message' =>
@@ -339,10 +320,57 @@ class ReservationController extends Controller
             'participants',
         ]);
 
+        /*
+         * Notify the visitor who submitted the reservation.
+         */
+        if ($reservation->user) {
+            $approved = $validated['status'] === 'APPROVED';
+
+            $reservation->user->notify(
+                new SystemNotification(
+                    $approved
+                        ? 'Reservation Approved'
+                        : 'Reservation Rejected',
+                    $approved
+                        ? "Your reservation {$reservation->reservation_number} has been approved."
+                        : "Your reservation {$reservation->reservation_number} has been rejected.",
+                    'reservation',
+                    null,
+                    [
+                        'reservation_id' => $reservation->id,
+                        'reservation_number' => $reservation->reservation_number,
+                        'hiking_date' => $reservation->hiking_date,
+                        'trail_name' => $reservation->trail?->name,
+                        'status' => $validated['status'],
+                    ]
+                )
+            );
+        }
+
         return response()->json([
             'message' =>
                 'Reservation status updated successfully.',
             'reservation' => $reservation,
         ]);
+    }
+
+    /**
+     * Send a notification to active ADMIN and EMPLOYEE accounts.
+     */
+    private function notifyDenrStaff(
+        SystemNotification $notification
+    ): void {
+        $staff = User::query()
+            ->whereIn('role', ['ADMIN', 'EMPLOYEE'])
+            ->where('status', 'ACTIVE')
+            ->get();
+
+        foreach ($staff as $recipient) {
+            try {
+                $recipient->notify($notification);
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        }
     }
 }

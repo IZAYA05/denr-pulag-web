@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, Pencil, UserX } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 
 import Badge from "@/components/ui/Badge";
@@ -30,7 +30,7 @@ export interface User {
   phone: string;
   role: UserRole;
   status: UserStatus;
-  lastLogin: string;
+  lastUpdated: string;
 }
 
 interface ApiUser {
@@ -38,7 +38,7 @@ interface ApiUser {
   first_name: string;
   last_name: string;
   email: string;
-  phone: string;
+  phone: string | null;
   role: string;
   status: string;
   created_at: string;
@@ -51,8 +51,13 @@ interface UserTableProps {
   status: string;
 }
 
+interface ApiResponse {
+  users?: ApiUser[];
+  message?: string;
+}
+
 function formatRole(role: string): UserRole {
-  switch (role) {
+  switch (role.toUpperCase()) {
     case "ADMIN":
       return "Administrator";
     case "EMPLOYEE":
@@ -66,7 +71,7 @@ function formatRole(role: string): UserRole {
   }
 }
 
-function formatApiRole(role: UserRole) {
+function formatApiRole(role: UserRole): string {
   switch (role) {
     case "Administrator":
       return "ADMIN";
@@ -79,16 +84,56 @@ function formatApiRole(role: UserRole) {
   }
 }
 
+function formatUpdatedDate(value: string | null | undefined) {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not available";
+  }
+
+  return date.toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+async function readApiResponse(
+  response: Response
+): Promise<ApiResponse> {
+  try {
+    const payload: unknown = await response.json();
+
+    if (
+      typeof payload === "object" &&
+      payload !== null
+    ) {
+      return payload as ApiResponse;
+    }
+  } catch {
+    // The response may not contain valid JSON.
+  }
+
+  return {};
+}
+
 export default function UserTable({
   search,
   role,
   status,
 }: UserTableProps) {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
 
   const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [tableError, setTableError] = useState("");
+
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
+
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
@@ -97,63 +142,120 @@ export default function UserTable({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole>("User");
+
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
+  const [editError, setEditError] = useState("");
 
-  async function fetchUsers() {
-    if (!session?.user?.accessToken) return;
+  const accessToken = session?.user?.accessToken;
 
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_LARAVEL_API_URL}/api/users`,
-        {
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${session.user.accessToken}`,
-          },
-        }
-      );
+  const apiUrl =
+    process.env.NEXT_PUBLIC_LARAVEL_API_URL ||
+    "http://localhost:18000";
 
-      if (!response.ok) {
-        console.error("Failed to fetch users:", response.status);
-        return;
+  const fetchUsers = useCallback(
+    async (signal?: AbortSignal): Promise<boolean> => {
+      if (!accessToken) {
+        return false;
       }
 
-      const data = await response.json();
+      try {
+        const response = await fetch(`${apiUrl}/api/users`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          cache: "no-store",
+          signal,
+        });
 
-      const formattedUsers: User[] = (data.users as ApiUser[]).map(
-        (user) => ({
+        const data = await readApiResponse(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || "Unable to retrieve user records."
+          );
+        }
+
+        const formattedUsers: User[] = (
+          Array.isArray(data.users) ? data.users : []
+        ).map((user) => ({
           id: `USR-${String(user.id).padStart(3, "0")}`,
           databaseId: user.id,
           firstName: user.first_name,
           lastName: user.last_name,
           name: `${user.first_name} ${user.last_name}`,
           email: user.email,
-          phone: user.phone,
+          phone: user.phone ?? "",
           role: formatRole(user.role),
-          status: user.status === "INACTIVE" ? "Inactive" : "Active",
-          lastLogin: new Date(user.updated_at).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          }),
-        })
-      );
+          status:
+            user.status?.toUpperCase() === "INACTIVE"
+              ? "Inactive"
+              : "Active",
+          lastUpdated: formatUpdatedDate(user.updated_at),
+        }));
 
-      // Hide administrator accounts from user management.
-      setUsers(
-        formattedUsers.filter(
-          (user) => user.role !== "Administrator"
-        )
-      );
-    } catch (error) {
-      console.error("Unable to fetch users:", error);
-    }
-  }
+        if (signal?.aborted) {
+          return false;
+        }
+
+        // Administrator accounts are excluded from user management.
+        setUsers(
+          formattedUsers.filter(
+            (user) => user.role !== "Administrator"
+          )
+        );
+
+        setLoadError("");
+        return true;
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.name === "AbortError"
+        ) {
+          return false;
+        }
+
+        if (!signal?.aborted) {
+          setUsers([]);
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Unable to retrieve user records."
+          );
+        }
+
+        return false;
+      }
+    },
+    [accessToken, apiUrl]
+  );
 
   useEffect(() => {
-    void fetchUsers();
-  }, [session]);
+    if (sessionStatus === "loading") {
+      setIsLoading(true);
+      return;
+    }
+
+    if (!accessToken) {
+      setUsers([]);
+      setLoadError("You are not authenticated.");
+      setIsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setIsLoading(true);
+
+    void fetchUsers(controller.signal).finally(() => {
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
+    });
+
+    return () => controller.abort();
+  }, [accessToken, sessionStatus, fetchUsers]);
 
   function handleView(user: User) {
     setViewingUser(user);
@@ -161,7 +263,6 @@ export default function UserTable({
   }
 
   function handleEdit(user: User) {
-    // Additional safeguard: administrators cannot be edited here.
     if (user.role === "Administrator") return;
 
     setEditingUser(user);
@@ -170,91 +271,135 @@ export default function UserTable({
     setEmail(user.email);
     setPhone(user.phone);
     setSelectedRole(user.role);
-    setError("");
+    setEditError("");
     setIsEditOpen(true);
   }
 
-  async function handleSaveChanges() {
-    if (!editingUser || editingUser.role === "Administrator") return;
+  function closeEditModal() {
+    if (isSaving) return;
 
-    if (!session?.user?.accessToken) {
-      setError("You are not authenticated.");
+    setIsEditOpen(false);
+    setEditingUser(null);
+    setEditError("");
+  }
+
+  async function handleSaveChanges() {
+    if (!editingUser || editingUser.role === "Administrator") {
+      return;
+    }
+
+    if (!accessToken) {
+      setEditError("You are not authenticated.");
+      return;
+    }
+
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim()
+    ) {
+      setEditError("First name, last name, and email are required.");
       return;
     }
 
     setIsSaving(true);
-    setError("");
+    setEditError("");
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_LARAVEL_API_URL}/api/users/${editingUser.databaseId}`,
+        `${apiUrl}/api/users/${editingUser.databaseId}`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
-            Authorization: `Bearer ${session.user.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            first_name: firstName,
-            last_name: lastName,
-            email,
-            phone,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            email: email.trim(),
+            phone: phone.trim(),
             role: formatApiRole(selectedRole),
           }),
         }
       );
 
-      const data = await response.json();
+      const data = await readApiResponse(response);
 
       if (!response.ok) {
-        setError(data.message || "Failed to update user.");
+        setEditError(data.message || "Failed to update user.");
         return;
       }
 
-      await fetchUsers();
+      const refreshed = await fetchUsers();
+
+      if (!refreshed) {
+        setEditError(
+          "The user was updated, but the user list could not be refreshed."
+        );
+        return;
+      }
+
       setIsEditOpen(false);
       setEditingUser(null);
-    } catch (error) {
-      console.error("Unable to update user:", error);
-      setError("Something went wrong while updating the user.");
+    } catch {
+      setEditError("Something went wrong while updating the user.");
     } finally {
       setIsSaving(false);
     }
   }
 
   async function handleToggleStatus(user: User) {
-    // Additional safeguard: administrators cannot be disabled here.
-    if (user.role === "Administrator") return;
-
-    if (!session?.user?.accessToken) {
-      alert("You are not authenticated.");
+    if (
+      user.role === "Administrator" ||
+      updatingUserId !== null
+    ) {
       return;
     }
 
+    if (!accessToken) {
+      setTableError("You are not authenticated.");
+      return;
+    }
+
+    setUpdatingUserId(user.databaseId);
+    setTableError("");
+
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_LARAVEL_API_URL}/api/users/${user.databaseId}/status`,
+        `${apiUrl}/api/users/${user.databaseId}/status`,
         {
           method: "PATCH",
           headers: {
             Accept: "application/json",
-            Authorization: `Bearer ${session.user.accessToken}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
 
-      const data = await response.json();
+      const data = await readApiResponse(response);
 
       if (!response.ok) {
-        alert(data.message || "Failed to update account status.");
+        setTableError(
+          data.message || "Failed to update account status."
+        );
         return;
       }
 
-      await fetchUsers();
-    } catch (error) {
-      console.error("Unable to update account status:", error);
-      alert("Something went wrong while updating the account.");
+      const refreshed = await fetchUsers();
+
+      if (!refreshed) {
+        setTableError(
+          "Account status was updated, but the user list could not be refreshed."
+        );
+      }
+    } catch {
+      setTableError(
+        "Something went wrong while updating the account."
+      );
+    } finally {
+      setUpdatingUserId(null);
     }
   }
 
@@ -276,6 +421,24 @@ export default function UserTable({
 
   return (
     <>
+      {loadError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400"
+        >
+          {loadError}
+        </div>
+      )}
+
+      {tableError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400"
+        >
+          {tableError}
+        </div>
+      )}
+
       <Table>
         <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
           <tr>
@@ -292,7 +455,7 @@ export default function UserTable({
               Status
             </th>
             <th className="px-6 py-4 text-left text-sm font-semibold text-zinc-600 dark:text-zinc-300">
-              Last Login
+              Last Updated
             </th>
             <th className="px-6 py-4 text-right text-sm font-semibold text-zinc-600 dark:text-zinc-300">
               Actions
@@ -301,7 +464,16 @@ export default function UserTable({
         </thead>
 
         <tbody>
-          {filteredUsers.length > 0 ? (
+          {isLoading ? (
+            <tr>
+              <td
+                colSpan={6}
+                className="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
+              >
+                Loading users...
+              </td>
+            </tr>
+          ) : filteredUsers.length > 0 ? (
             filteredUsers.map((user) => (
               <tr
                 key={user.id}
@@ -312,7 +484,9 @@ export default function UserTable({
                     <p className="font-semibold text-zinc-900 dark:text-white">
                       {user.name}
                     </p>
-                    <p className="text-xs text-zinc-500">{user.id}</p>
+                    <p className="text-xs text-zinc-500">
+                      {user.id}
+                    </p>
                   </div>
                 </td>
 
@@ -336,14 +510,18 @@ export default function UserTable({
 
                 <td className="px-6 py-4">
                   <Badge
-                    variant={user.status === "Active" ? "success" : "danger"}
+                    variant={
+                      user.status === "Active"
+                        ? "success"
+                        : "danger"
+                    }
                   >
                     {user.status}
                   </Badge>
                 </td>
 
                 <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-300">
-                  {user.lastLogin}
+                  {user.lastUpdated}
                 </td>
 
                 <td className="px-6 py-4 text-right">
@@ -368,6 +546,7 @@ export default function UserTable({
 
                     <Button
                       variant="ghost"
+                      disabled={updatingUserId === user.databaseId}
                       onClick={() => handleToggleStatus(user)}
                       className={
                         user.status === "Active"
@@ -376,9 +555,11 @@ export default function UserTable({
                       }
                     >
                       <UserX className="h-4 w-4" />
-                      {user.status === "Active"
-                        ? "Disable Account"
-                        : "Enable Account"}
+                      {updatingUserId === user.databaseId
+                        ? "Updating..."
+                        : user.status === "Active"
+                          ? "Disable Account"
+                          : "Enable Account"}
                     </Button>
                   </Dropdown>
                 </td>
@@ -390,7 +571,9 @@ export default function UserTable({
                 colSpan={6}
                 className="px-6 py-12 text-center text-sm text-zinc-500 dark:text-zinc-400"
               >
-                No users found.
+                {loadError
+                  ? "Unable to display user records."
+                  : "No users found."}
               </td>
             </tr>
           )}
@@ -450,7 +633,7 @@ export default function UserTable({
                 Phone Number
               </p>
               <p className="mt-1 font-semibold text-zinc-900 dark:text-white">
-                {viewingUser.phone}
+                {viewingUser.phone || "Not provided"}
               </p>
             </div>
 
@@ -481,7 +664,9 @@ export default function UserTable({
                 <div className="mt-2">
                   <Badge
                     variant={
-                      viewingUser.status === "Active" ? "success" : "danger"
+                      viewingUser.status === "Active"
+                        ? "success"
+                        : "danger"
                     }
                   >
                     {viewingUser.status}
@@ -495,7 +680,7 @@ export default function UserTable({
                 Last Updated
               </p>
               <p className="mt-1 font-semibold text-zinc-900 dark:text-white">
-                {viewingUser.lastLogin}
+                {viewingUser.lastUpdated}
               </p>
             </div>
           </div>
@@ -505,26 +690,22 @@ export default function UserTable({
       {/* Edit User Modal */}
       <Modal
         open={isEditOpen}
-        onClose={() => {
-          setIsEditOpen(false);
-          setEditingUser(null);
-          setError("");
-        }}
+        onClose={closeEditModal}
         title="Edit User"
         footer={
           <>
             <Button
               variant="ghost"
-              onClick={() => {
-                setIsEditOpen(false);
-                setEditingUser(null);
-                setError("");
-              }}
+              disabled={isSaving}
+              onClick={closeEditModal}
             >
               Cancel
             </Button>
 
-            <Button onClick={handleSaveChanges} disabled={isSaving}>
+            <Button
+              onClick={handleSaveChanges}
+              disabled={isSaving}
+            >
               {isSaving ? "Saving..." : "Save Changes"}
             </Button>
           </>
@@ -565,7 +746,14 @@ export default function UserTable({
             options={["Employee", "Organizer", "User"]}
           />
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {editError && (
+            <p
+              role="alert"
+              className="text-sm text-red-500"
+            >
+              {editError}
+            </p>
+          )}
         </div>
       </Modal>
     </>

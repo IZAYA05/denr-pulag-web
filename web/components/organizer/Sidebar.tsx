@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -45,11 +44,6 @@ const navigation = [
   {
     title: "MANAGEMENT",
     items: [
-      {
-        label: "Booking Verification",
-        href: "/organizer/verification",
-        icon: CalendarDays,
-      },
       {
         label: "Profile",
         href: "/organizer/profile",
@@ -113,6 +107,7 @@ export default function Sidebar({
                 <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">
                   E-PULAG
                 </h1>
+
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   Organizer Portal
                 </p>

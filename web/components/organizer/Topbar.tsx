@@ -8,6 +8,7 @@ import { signOut, useSession } from "next-auth/react";
 import { ChevronDown, Menu, Search } from "lucide-react";
 
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import NotificationBell from "@/components/shared/notifications/NotificationBell";
 
 type TopbarProps = {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -15,7 +16,6 @@ type TopbarProps = {
 
 export default function Topbar({ setIsOpen }: TopbarProps) {
   const pathname = usePathname();
-
   const { data: session } = useSession();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -26,7 +26,6 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
       "/organizer/packages": "My Packages",
       "/organizer/bookings": "Package Bookings",
       "/organizer/groups": "Groups",
-      "/organizer/verification": "Booking Verification",
       "/organizer/profile": "Profile",
     };
 
@@ -40,10 +39,6 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
 
     if (pathname.startsWith("/organizer/groups/")) {
       return "Groups";
-    }
-
-    if (pathname.startsWith("/organizer/verification/")) {
-      return "Booking Verification";
     }
 
     return routes[pathname] ?? "Dashboard";
@@ -62,7 +57,8 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
 
   const lastName = session?.user?.lastName || "";
 
-  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const initials =
+    `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/90">
@@ -71,7 +67,9 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
         <div className="flex items-center gap-4">
           {/* Mobile Sidebar Toggle */}
           <button
+            type="button"
             onClick={() => setIsOpen(true)}
+            aria-label="Open navigation"
             className="rounded-xl p-2 transition hover:bg-zinc-100 dark:hover:bg-zinc-900 lg:hidden"
           >
             <Menu className="h-6 w-6 text-zinc-700 dark:text-zinc-300" />
@@ -97,6 +95,7 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
             <input
               type="text"
               placeholder="Search..."
+              aria-label="Search"
               className="w-72 rounded-2xl border border-zinc-200 bg-zinc-50 py-2.5 pl-11 pr-4 text-sm outline-none transition-all focus:border-emerald-500 focus:bg-white dark:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:focus:bg-zinc-950"
             />
           </div>
@@ -107,11 +106,16 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
             iconSize="h-5 w-5"
           />
 
+          {/* Notifications */}
+          <NotificationBell />
+
           {/* Profile */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setIsProfileOpen(!isProfileOpen)}
+              aria-label="Open organizer profile menu"
+              aria-expanded={isProfileOpen}
               className="
                 flex
                 h-10
@@ -138,7 +142,9 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
                   {firstName} {lastName}
                 </p>
 
-                <p className="text-xs text-zinc-500">Organizer</p>
+                <p className="text-xs text-zinc-500">
+                  Organizer
+                </p>
               </div>
 
               <ChevronDown

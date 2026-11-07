@@ -6,7 +6,9 @@ import {
   Users,
   MapPinned,
   CalendarClock,
+  Package,
 } from "lucide-react";
+
 import { useEmployeeDashboard } from "@/components/employee/EmployeeDashboardClient";
 
 type DashboardData = {
@@ -26,6 +28,7 @@ const API_URL =
 
 export default function EmployeeStats() {
   const { accessToken } = useEmployeeDashboard();
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,6 +37,12 @@ export default function EmployeeStats() {
     const controller = new AbortController();
 
     async function fetchStats() {
+      if (!accessToken) {
+        setData(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -44,28 +53,34 @@ export default function EmployeeStats() {
             Authorization: `Bearer ${accessToken}`,
           },
           signal: controller.signal,
+          cache: "no-store",
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to load statistics (${response.status}).`);
+          throw new Error(
+            `Failed to load statistics (${response.status}).`
+          );
         }
 
         const result: DashboardData = await response.json();
+
         setData(result);
-      } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") return;
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
 
         setError(
-          error instanceof Error
-            ? error.message
+          err instanceof Error
+            ? err.message
             : "Unable to load dashboard statistics."
         );
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
-    fetchStats();
+    void fetchStats();
 
     return () => controller.abort();
   }, [accessToken]);
@@ -81,11 +96,11 @@ export default function EmployeeStats() {
       label: "Confirmed Visitors Today",
       value: data?.confirmed_visitors_today,
       icon: Users,
-      description: "Approved bookings",
+      description: "Approved by DENR",
     },
     {
       label: "Active Trails",
-      value: data?.trails.active,
+      value: data?.trails?.active,
       icon: MapPinned,
       description: "Currently active",
     },
@@ -93,6 +108,12 @@ export default function EmployeeStats() {
       label: "Pending Direct Reservations",
       value: data?.pending_direct_reservations,
       icon: CalendarClock,
+      description: "Awaiting DENR review",
+    },
+    {
+      label: "Pending Package Bookings",
+      value: data?.pending_package_bookings,
+      icon: Package,
       description: "Awaiting review",
     },
   ];
@@ -108,7 +129,7 @@ export default function EmployeeStats() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {stats.map((stat) => {
           const Icon = stat.icon;
 
@@ -123,7 +144,13 @@ export default function EmployeeStats() {
                 </div>
 
                 <span className="text-xs text-zinc-400">
-                  {loading ? "Loading" : "Live data"}
+                  {loading
+                    ? "Loading"
+                    : error
+                      ? "Unavailable"
+                      : data
+                        ? "Live data"
+                        : "Unavailable"}
                 </span>
               </div>
 
@@ -132,7 +159,11 @@ export default function EmployeeStats() {
               </p>
 
               <p className="mt-2 text-3xl font-bold text-zinc-900 dark:text-white">
-                {loading ? "—" : (stat.value ?? 0)}
+                {loading || error || !data
+                  ? "—"
+                  : typeof stat.value === "number"
+                    ? stat.value.toLocaleString()
+                    : "—"}
               </p>
 
               <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -145,9 +176,8 @@ export default function EmployeeStats() {
 
       {data && (
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Statistics date: {data.date} · Pending package bookings:{" "}
-          {data.pending_package_bookings} · Inactive trails:{" "}
-          {data.trails.inactive}
+          Statistics date: {data.date} · Inactive trails:{" "}
+          {data.trails?.inactive?.toLocaleString() ?? "Unavailable"}
         </p>
       )}
     </section>

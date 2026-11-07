@@ -14,6 +14,9 @@ class EmployeeDashboardController extends Controller
 {
     /**
      * Return the employee dashboard summary.
+     *
+     * Only bookings awaiting DENR review are included
+     * in the employee's pending package booking count.
      */
     public function dashboard(): JsonResponse
     {
@@ -29,25 +32,37 @@ class EmployeeDashboardController extends Controller
             ->withCount('tourists')
             ->get();
 
-        $pendingDirect = Reservation::where('status', 'PENDING')->count();
+        $pendingDirect = Reservation::where('status', 'PENDING')
+            ->count();
 
-        $pendingPackages = PackageBooking::where('status', 'PENDING')->count();
+        $pendingPackages = PackageBooking::query()
+            ->where('status', 'APPROVED')
+            ->where('denr_status', 'PENDING')
+            ->count();
 
         $confirmedDirectVisitors = $todayReservations
             ->where('status', 'APPROVED')
             ->sum('participants_count');
 
         $confirmedPackageVisitors = $todayPackageBookings
-            ->where('status', 'APPROVED')
+            ->filter(fn ($booking) =>
+                $booking->status === 'APPROVED' &&
+                $booking->denr_status === 'APPROVED'
+            )
             ->sum('tourists_count');
 
         return response()->json([
             'date' => $today->toDateString(),
+
             'pending_direct_reservations' => $pendingDirect,
             'pending_package_bookings' => $pendingPackages,
-            'pending_bookings' => $pendingDirect + $pendingPackages,
+
+            'pending_bookings' =>
+                $pendingDirect + $pendingPackages,
+
             'confirmed_visitors_today' =>
                 $confirmedDirectVisitors + $confirmedPackageVisitors,
+
             'trails' => [
                 'active' => Trail::where('is_active', true)->count(),
                 'inactive' => Trail::where('is_active', false)->count(),
@@ -95,8 +110,13 @@ class EmployeeDashboardController extends Controller
                 'booking_number' => $booking->booking_number,
                 'hiking_date' => $booking->hiking_date,
                 'total_visitors' => $booking->tourists->count(),
+
+                // Stage 1: Organizer decision.
                 'status' => $booking->status,
-                'coordination_status' => $booking->coordination_status,
+
+                // Stage 2: Final DENR decision.
+                'denr_status' => $booking->denr_status,
+
                 'remarks' => $booking->remarks,
                 'trail' => $booking->trail,
                 'customer' => $booking->customer,
@@ -150,7 +170,13 @@ class EmployeeDashboardController extends Controller
                     'booking_id' => $booking->id,
                     'booking_number' => $booking->booking_number,
                     'hiking_date' => $booking->hiking_date,
+
+                    // Organizer decision.
                     'booking_status' => $booking->status,
+
+                    // DENR final decision.
+                    'denr_status' => $booking->denr_status,
+
                     'trail' => $booking->trail?->name,
                     'full_name' => $visitor->full_name,
                     'age' => $visitor->age,
@@ -195,31 +221,76 @@ class EmployeeDashboardController extends Controller
         $approvedDirect = $directReservations
             ->where('status', 'APPROVED');
 
+        $awaitingOrganizer = $packageBookings
+            ->where('status', 'PENDING');
+
+        $awaitingDenr = $packageBookings
+            ->filter(fn ($booking) =>
+                $booking->status === 'APPROVED' &&
+                $booking->denr_status === 'PENDING'
+            );
+
         $approvedPackages = $packageBookings
-            ->where('status', 'APPROVED');
+            ->filter(fn ($booking) =>
+                $booking->status === 'APPROVED' &&
+                $booking->denr_status === 'APPROVED'
+            );
+
+        $rejectedByOrganizer = $packageBookings
+            ->where('status', 'REJECTED');
+
+        $rejectedByDenr = $packageBookings
+            ->filter(fn ($booking) =>
+                $booking->status === 'APPROVED' &&
+                $booking->denr_status === 'REJECTED'
+            );
 
         return response()->json([
             'date' => $date,
+
             'direct_reservations' => [
                 'total' => $directReservations->count(),
+
                 'pending' => $directReservations
-                    ->where('status', 'PENDING')->count(),
+                    ->where('status', 'PENDING')
+                    ->count(),
+
                 'approved' => $approvedDirect->count(),
+
                 'rejected' => $directReservations
-                    ->where('status', 'REJECTED')->count(),
+                    ->where('status', 'REJECTED')
+                    ->count(),
+
                 'confirmed_visitors' => $approvedDirect
                     ->sum('participants_count'),
             ],
+
             'package_bookings' => [
                 'total' => $packageBookings->count(),
-                'pending' => $packageBookings
-                    ->where('status', 'PENDING')->count(),
+
+                'pending' =>
+                    $awaitingOrganizer->count() + $awaitingDenr->count(),
+
+                'awaiting_organizer' => $awaitingOrganizer->count(),
+
+                'awaiting_denr' => $awaitingDenr->count(),
+
                 'approved' => $approvedPackages->count(),
-                'rejected' => $packageBookings
-                    ->where('status', 'REJECTED')->count(),
+
+                'rejected' =>
+                    $rejectedByOrganizer->count() +
+                    $rejectedByDenr->count(),
+
+                'rejected_by_organizer' =>
+                    $rejectedByOrganizer->count(),
+
+                'rejected_by_denr' =>
+                    $rejectedByDenr->count(),
+
                 'confirmed_visitors' => $approvedPackages
                     ->sum('tourists_count'),
             ],
+
             'confirmed_visitors' =>
                 $approvedDirect->sum('participants_count')
                 + $approvedPackages->sum('tourists_count'),
@@ -236,8 +307,11 @@ class EmployeeDashboardController extends Controller
                 ->withCount([
                     'reservations as approved_reservations_count' => fn ($query) =>
                         $query->where('status', 'APPROVED'),
+
                     'packageBookings as approved_package_bookings_count' => fn ($query) =>
-                        $query->where('status', 'APPROVED'),
+                        $query
+                            ->where('status', 'APPROVED')
+                            ->where('denr_status', 'APPROVED'),
                 ])
                 ->orderBy('name')
                 ->get(),

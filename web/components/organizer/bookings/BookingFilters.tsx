@@ -12,11 +12,9 @@ export default function BookingFilters() {
   const {
     search,
     statusFilter,
-    coordinationFilter,
     dateFilter,
     setSearch,
     setStatusFilter,
-    setCoordinationFilter,
     setDateFilter,
   } = useBookings();
 
@@ -42,21 +40,9 @@ export default function BookingFilters() {
             "All Status",
             "Pending",
             "Confirmed",
+            "Rejected",
             "Cancelled",
             "Completed",
-          ]}
-        />
-
-        <Select
-          value={coordinationFilter}
-          onChange={(event) =>
-            setCoordinationFilter(event.target.value)
-          }
-          options={[
-            "All Verification Statuses",
-            "Not Verified",
-            "Verification Pending",
-            "Verified",
           ]}
         />
 
