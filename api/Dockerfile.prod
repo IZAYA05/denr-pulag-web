@@ -46,9 +46,10 @@ RUN composer install \
     --no-interaction \
     --prefer-dist
 
-# Set Laravel storage permissions
+# Set Laravel directory permissions
 RUN chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 8000
 
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+# Run pending migrations before starting Laravel
+CMD ["sh", "-c", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000"]
