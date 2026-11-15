@@ -14,6 +14,7 @@ import type { ApiPackageBooking } from "@/components/organizer/BookingDetailsMod
 
 export type BookingStatus =
   | "Pending"
+  | "Awaiting DENR"
   | "Confirmed"
   | "Rejected"
   | "Cancelled"
@@ -65,17 +66,18 @@ type BookingContextValue = {
 
 const BookingContext = createContext<BookingContextValue | null>(null);
 
-function formatBookingStatus(status: string): BookingStatus {
-  const statuses: Record<string, BookingStatus> = {
-    PENDING: "Pending",
-    APPROVED: "Confirmed",
-    CONFIRMED: "Confirmed",
-    REJECTED: "Rejected",
-    CANCELLED: "Cancelled",
-    COMPLETED: "Completed",
-  };
+function formatBookingStatus(booking: ApiPackageBooking): BookingStatus {
+  const organizerStatus = String(booking.status || "").toUpperCase();
+  const denrStatus = String(booking.denr_status || "").toUpperCase();
 
-  return statuses[status] ?? "Pending";
+  if (organizerStatus === "REJECTED" || denrStatus === "REJECTED") return "Rejected";
+  if (organizerStatus === "CANCELLED") return "Cancelled";
+  if (organizerStatus === "COMPLETED") return "Completed";
+  if (organizerStatus === "PENDING") return "Pending";
+  if (organizerStatus === "APPROVED" && denrStatus === "PENDING") return "Awaiting DENR";
+  if (organizerStatus === "APPROVED" && denrStatus === "APPROVED") return "Confirmed";
+
+  return "Pending";
 }
 
 function formatDate(date: string) {
@@ -124,7 +126,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
         rawDate: booking.hiking_date.slice(0, 10),
         tourists: booking.tourist_count,
         amount: Number(booking.package?.price ?? 0),
-        status: formatBookingStatus(String(booking.status)),
+        status: formatBookingStatus(booking),
       })),
     [apiBookings]
   );
@@ -172,13 +174,15 @@ export function BookingProvider({ children }: { children: ReactNode }) {
     if (sessionStatus === "loading") return;
 
     if (!token) {
-      setApiBookings([]);
-      setLoading(false);
-      setError("You must be logged in to view bookings.");
+      void Promise.resolve().then(() => {
+        setApiBookings([]);
+        setLoading(false);
+        setError("You must be logged in to view bookings.");
+      });
       return;
     }
 
-    void refreshBookings();
+    void Promise.resolve().then(refreshBookings);
   }, [sessionStatus, token, refreshBookings]);
 
   const filteredBookings = useMemo(() => {
@@ -208,7 +212,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
   ).length;
 
   const pendingBookings = bookings.filter(
-    (booking) => booking.status === "Pending"
+    (booking) => booking.status === "Pending" || booking.status === "Awaiting DENR"
   ).length;
 
   const totalTourists = bookings.reduce(

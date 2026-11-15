@@ -14,16 +14,16 @@ const bookingPolicies = [
       "Maximum number of participants in one group booking.",
   },
   {
-    label: "Advance Booking Window",
+    label: "Minimum Booking Lead Time",
     value: "30 days",
     description:
-      "Bookings may be submitted up to one month before the hiking date.",
+      "Bookings must be submitted at least 30 days before the hiking date.",
   },
   {
     label: "Holiday Bookings",
     value: "Not permitted",
     description:
-      "Bookings are not allowed on holidays.",
+      "DENR staff must add holidays and park closures to the Unavailable Dates list. Blocked dates are rejected by the booking API.",
   },
 ];
 
@@ -62,7 +62,7 @@ export default function BookingSettings() {
       </div>
 
       <p className="mt-5 rounded-xl bg-amber-50 p-4 text-xs leading-5 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-        These policies represent the system's established booking
+        These policies represent the system&apos;s established booking
         requirements. Changes must be handled through authorized
         system configuration.
       </p>

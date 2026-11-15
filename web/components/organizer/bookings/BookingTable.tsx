@@ -35,6 +35,7 @@ function getStatusVariant(status: string): BadgeVariant {
       return "info";
 
     case "Pending":
+    case "Awaiting DENR":
       return "warning";
 
     case "Rejected":

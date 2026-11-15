@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\BlockedDate;
 use App\Services\BookingCapacityService;
 use Carbon\Carbon;
 use Closure;
@@ -49,6 +50,18 @@ class BookingCreationPolicy
             return $next($request);
         }
 
+        $blockedDate = BlockedDate::query()
+            ->whereDate('date', $hikingDate->toDateString())
+            ->first();
+
+        if ($blockedDate) {
+            return response()->json([
+                'message' => 'The selected hiking date is unavailable.',
+                'date' => $hikingDate->toDateString(),
+                'reason' => $blockedDate->reason,
+            ], 422);
+        }
+
         $minimumDate = Carbon::today('Asia/Manila')->addDays(30);
 
         if ($hikingDate->lt($minimumDate)) {
@@ -84,6 +97,14 @@ class BookingCreationPolicy
             $summary = $this->capacityService->getSummary(
                 $hikingDate->toDateString()
             );
+
+            if ($summary['is_blocked']) {
+                return response()->json([
+                    'message' => 'The selected hiking date is unavailable.',
+                    'date' => $summary['date'],
+                    'reason' => $summary['blocked_reason'],
+                ], 422);
+            }
 
             if (
                 $summary['current_capacity'] + $requestedVisitors >

@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Mountain, Settings2 } from "lucide-react";
+import { Info } from "lucide-react";
 
 import Card from "@/components/ui/Card";
 
@@ -60,35 +59,17 @@ export default function TrailSettings() {
         ))}
       </div>
 
-      <div className="mt-6 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-900">
-        <div className="flex items-start gap-3">
-          <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-
-          <div>
-            <p className="text-sm font-semibold text-zinc-900 dark:text-white">
-              Manage Trail Records
-            </p>
-
-            <p className="mt-1 text-sm leading-5 text-zinc-500 dark:text-zinc-400">
-              Trail records and their active status are managed through
-              the Trail Management section.
-            </p>
-
-            <Link
-              href="/admin/trails"
-              className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-            >
-              <Mountain className="h-4 w-4" />
-              Open Trail Management
-            </Link>
-          </div>
+      <div className="mt-6 flex items-start gap-3 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-900">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div>
+          <p className="text-sm font-semibold text-zinc-900 dark:text-white">Trail editing is not available here</p>
+          <p className="mt-1 text-sm leading-5 text-zinc-500 dark:text-zinc-400">
+            Trail records are currently read-only in the dashboard. Confirm trail names, descriptions, and active status with DENR before changing database records.
+          </p>
         </div>
       </div>
 
-      <p className="mt-5 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-        Separate maintenance mode and maintenance reminder settings are
-        not currently implemented.
-      </p>
+
     </Card>
   );
 }

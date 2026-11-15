@@ -7,7 +7,7 @@ import Image from "next/image";
 const trails = [
   {
     name: "Ambangeg Trail",
-    image: "/trails/ambangeg.jpg",
+    image: "/Pulag.jpg",
     difficulty: "Beginner",
     duration: "4 - 6 Hours",
     capacity: "12 Persons / Group",
@@ -16,7 +16,7 @@ const trails = [
   },
   {
     name: "Akiki Trail",
-    image: "/trails/akiki.jpg",
+    image: "/near-saddle-camp.jpg",
     difficulty: "Advanced",
     duration: "2 Days",
     capacity: "12 Persons / Group",
@@ -25,7 +25,7 @@ const trails = [
   },
   {
     name: "Tawangan Trail",
-    image: "/trails/tawangan.jpg",
+    image: "/mount-pulag-sea-of-clouds.jpg",
     difficulty: "Intermediate",
     duration: "2 Days",
     capacity: "12 Persons /Group",

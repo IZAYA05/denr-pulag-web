@@ -8,8 +8,8 @@ import {
   ChevronRight,
   ClipboardList,
   Compass,
-  LayoutDashboard,
   Mountain,
+  MessageSquare,
   UserRound,
   X,
 } from "lucide-react";
@@ -34,6 +34,11 @@ const navigation = [
         label: "My Reservations",
         href: "/user/reservations",
         icon: ClipboardList,
+      },
+      {
+        label: "Chatbox",
+        href: "/user/chatbox",
+        icon: MessageSquare,
       },
       {
         label: "Announcements",

@@ -37,7 +37,14 @@ type PackageBooking = {
 type ApiResponse<T> = {
   reservations?: T[];
   bookings?: T[];
+  blocked_dates?: T[];
   message?: string;
+};
+
+type BlockedDate = {
+  id: number;
+  date: string;
+  reason?: string | null;
 };
 
 type BookingPresentation = {
@@ -167,7 +174,7 @@ export default function BookingCalendar() {
         Authorization: `Bearer ${accessToken}`,
       };
 
-      const [directResponse, packageResponse] = await Promise.all([
+      const [directResponse, packageResponse, blockedDatesResponse] = await Promise.all([
         fetch(`${API_URL}/api/admin/reservations`, {
           headers,
           cache: "no-store",
@@ -176,11 +183,16 @@ export default function BookingCalendar() {
           headers,
           cache: "no-store",
         }),
+        fetch(`${API_URL}/api/blocked-dates`, {
+          headers,
+          cache: "no-store",
+        }),
       ]);
 
-      const [directData, packageData] = await Promise.all([
+      const [directData, packageData, blockedDatesData] = await Promise.all([
         directResponse.json() as Promise<ApiResponse<DirectBooking>>,
         packageResponse.json() as Promise<ApiResponse<PackageBooking>>,
+        blockedDatesResponse.json() as Promise<ApiResponse<BlockedDate>>,
       ]);
 
       if (!directResponse.ok) {
@@ -192,6 +204,12 @@ export default function BookingCalendar() {
       if (!packageResponse.ok) {
         throw new Error(
           packageData.message || "Failed to load package bookings."
+        );
+      }
+
+      if (!blockedDatesResponse.ok) {
+        throw new Error(
+          blockedDatesData.message || "Failed to load unavailable dates."
         );
       }
 
@@ -294,7 +312,26 @@ export default function BookingCalendar() {
           };
         });
 
-      setEvents([...directEvents, ...packageEvents]);
+      const blockedDateEvents: EventInput[] = (
+        Array.isArray(blockedDatesData.blocked_dates)
+          ? blockedDatesData.blocked_dates
+          : []
+      ).map((blockedDate) => ({
+        id: `blocked-${blockedDate.id}`,
+        title: blockedDate.reason
+          ? `Unavailable · ${blockedDate.reason}`
+          : "Unavailable · DENR blocked date",
+        start: blockedDate.date.slice(0, 10),
+        allDay: true,
+        backgroundColor: "#dc2626",
+        borderColor: "#dc2626",
+        extendedProps: {
+          bookingType: "Unavailable Date",
+          reason: blockedDate.reason || "No reason provided",
+        },
+      }));
+
+      setEvents([...directEvents, ...packageEvents, ...blockedDateEvents]);
     } catch (err) {
       console.error(err);
 
@@ -309,7 +346,7 @@ export default function BookingCalendar() {
   }, [accessToken]);
 
   useEffect(() => {
-    void fetchBookings();
+    void Promise.resolve().then(fetchBookings);
   }, [fetchBookings]);
 
   return (
@@ -379,6 +416,11 @@ export default function BookingCalendar() {
             <span className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
               Completed / Status unavailable
+            </span>
+
+            <span className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-600" />
+              Unavailable / Blocked date
             </span>
           </div>
 

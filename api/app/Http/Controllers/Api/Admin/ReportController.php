@@ -202,13 +202,38 @@ class ReportController extends Controller
     }
 
     /**
-     * Registered package tourist report.
+     * Visitor report across both direct reservations and package bookings.
      */
     private function visitorReport(
         ?string $dateFrom,
         ?string $dateTo
     ): array {
-        $query = DB::table('package_booking_tourists')
+        $direct = DB::table('reservation_participants')
+            ->join('reservations', 'reservation_participants.reservation_id', '=', 'reservations.id')
+            ->select([
+                'reservation_participants.full_name',
+                'reservation_participants.age',
+                'reservation_participants.gender',
+                'reservation_participants.nationality',
+                'reservation_participants.contact_number',
+                'reservation_participants.address',
+                'reservation_participants.emergency_contact',
+                'reservation_participants.emergency_number',
+                'reservations.reservation_number as booking_number',
+                DB::raw("'Direct Reservation' as booking_type"),
+                'reservations.hiking_date',
+                'reservations.status as booking_status',
+                DB::raw('NULL as denr_status'),
+            ]);
+
+        $this->applyDateFilter(
+            $direct,
+            'reservations.hiking_date',
+            $dateFrom,
+            $dateTo
+        );
+
+        $package = DB::table('package_booking_tourists')
             ->join(
                 'package_bookings',
                 'package_booking_tourists.package_booking_id',
@@ -225,26 +250,29 @@ class ReportController extends Controller
                 'package_booking_tourists.emergency_contact',
                 'package_booking_tourists.emergency_number',
                 'package_bookings.booking_number',
+                DB::raw("'Package Booking' as booking_type"),
                 'package_bookings.hiking_date',
-                'package_bookings.status as organizer_status',
+                'package_bookings.status as booking_status',
                 'package_bookings.denr_status',
             ]);
 
         $this->applyDateFilter(
-            $query,
+            $package,
             'package_bookings.hiking_date',
             $dateFrom,
             $dateTo
         );
 
-        $rows = $query->orderBy('package_bookings.hiking_date')
+        $rows = $direct
+            ->unionAll($package)
+            ->orderBy('hiking_date')
             ->get()
             ->map(fn ($item) => (array) $item)
             ->all();
 
         return [
             [
-                'Tourist Name',
+                'Visitor Name',
                 'Age',
                 'Gender',
                 'Nationality',
@@ -253,8 +281,9 @@ class ReportController extends Controller
                 'Emergency Contact',
                 'Emergency Number',
                 'Booking Number',
+                'Booking Type',
                 'Hiking Date',
-                'Organizer Status',
+                'Booking Status',
                 'DENR Status',
             ],
             $rows,
@@ -262,19 +291,16 @@ class ReportController extends Controller
     }
 
     /**
-     * Daily visitor totals from direct and package bookings.
-     *
-     * Counts all booking statuses. Statuses are included in the
-     * underlying booking reports for further filtering if required.
+     * Daily visitor totals from bookings that still reserve park capacity.
+     * Cancelled and rejected bookings are excluded, matching the booking capacity service.
      */
     private function dailyVisitorReport(
         ?string $dateFrom,
         ?string $dateTo
     ): array {
         $direct = DB::table('reservations')
-            ->selectRaw(
-                'hiking_date, SUM(total_participants) as visitors'
-            );
+            ->selectRaw('hiking_date, SUM(total_participants) as visitors')
+            ->whereNotIn('status', ['CANCELLED', 'REJECTED']);
 
         $this->applyDateFilter(
             $direct,
@@ -286,9 +312,12 @@ class ReportController extends Controller
         $direct = $direct->groupBy('hiking_date')->get();
 
         $packages = DB::table('package_bookings')
-            ->selectRaw(
-                'hiking_date, SUM(tourist_count) as visitors'
-            );
+            ->selectRaw('hiking_date, SUM(tourist_count) as visitors')
+            ->whereNotIn('status', ['CANCELLED', 'REJECTED'])
+            ->where(function ($query) {
+                $query->whereNull('denr_status')
+                    ->orWhere('denr_status', '!=', 'REJECTED');
+            });
 
         $this->applyDateFilter(
             $packages,

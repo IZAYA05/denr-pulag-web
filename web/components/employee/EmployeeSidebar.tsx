@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  CalendarDays,
   ChartNoAxesCombined,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
   LayoutDashboard,
   Mountain,
+  MessageSquare,
   Package,
   UserRound,
   Users,
@@ -41,6 +41,11 @@ const navigation = [
         label: "Visitors",
         href: "/employee/visitors",
         icon: Users,
+      },
+      {
+        label: "Chatbox",
+        href: "/employee/chatbox",
+        icon: MessageSquare,
       },
     ],
   },

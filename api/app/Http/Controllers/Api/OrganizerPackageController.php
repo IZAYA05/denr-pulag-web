@@ -58,6 +58,7 @@ class OrganizerPackageController extends Controller
                 'price' => $validated['price'],
                 'max_tourists' => $validated['max_tourists'],
                 'status' => 'ACTIVE',
+                'approval_status' => 'PENDING',
             ]);
 
             $package->services()->createMany(
@@ -122,6 +123,11 @@ class OrganizerPackageController extends Controller
                 'description' => $validated['description'],
                 'price' => $validated['price'],
                 'max_tourists' => $validated['max_tourists'],
+                // Any material package edit must be reviewed again by DENR.
+                'approval_status' => 'PENDING',
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'approval_notes' => null,
             ]);
 
             $package->services()->delete();
@@ -151,6 +157,12 @@ class OrganizerPackageController extends Controller
             return response()->json([
                 'message' => 'Package not found.',
             ], 404);
+        }
+
+        if ($package->approval_status !== 'APPROVED') {
+            return response()->json([
+                'message' => 'This package must be approved by DENR before it can be activated.',
+            ], 422);
         }
 
         $package->status = $package->status === 'ACTIVE'

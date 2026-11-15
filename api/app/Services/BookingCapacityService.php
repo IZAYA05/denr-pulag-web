@@ -2,10 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\BlockedDate;
 use App\Models\PackageBooking;
 use App\Models\Reservation;
-use App\Models\Trail;
 use Illuminate\Support\Facades\DB;
+use Carbon\CarbonPeriod;
 use RuntimeException;
 
 class BookingCapacityService
@@ -21,14 +22,14 @@ class BookingCapacityService
      */
     public function lockForCapacityCheck(): void
     {
-        $lockRecord = Trail::query()
-            ->orderBy('id')
+        $lockRecord = DB::table('booking_capacity_locks')
+            ->where('id', 1)
             ->lockForUpdate()
             ->first();
 
         if (!$lockRecord) {
             throw new RuntimeException(
-                'No trail record is available for booking capacity checks.'
+                'The booking capacity lock record is missing. Run the pending database migrations.'
             );
         }
     }
@@ -66,6 +67,10 @@ class BookingCapacityService
             (int) $directReservations +
             (int) $packageBookings;
 
+        $blockedDate = BlockedDate::query()
+            ->whereDate('date', $date)
+            ->first(['date', 'reason']);
+
         $remainingCapacity = max(
             0,
             self::MAXIMUM_CAPACITY - $currentCapacity
@@ -77,7 +82,63 @@ class BookingCapacityService
             'maximum_capacity' => self::MAXIMUM_CAPACITY,
             'remaining_capacity' => $remainingCapacity,
             'is_full' => $remainingCapacity === 0,
+            'is_blocked' => $blockedDate !== null,
+            'blocked_reason' => $blockedDate?->reason,
         ];
+    }
+
+
+    /**
+     * Return capacity and DENR availability for every date in a range.
+     * Aggregate queries keep the calendar request efficient.
+     */
+    public function getRangeSummary(string $from, string $to): array
+    {
+        $directTotals = Reservation::query()
+            ->selectRaw('hiking_date, SUM(total_participants) as visitor_total')
+            ->whereBetween('hiking_date', [$from, $to])
+            ->whereNotIn('status', ['CANCELLED', 'REJECTED'])
+            ->groupBy('hiking_date')
+            ->pluck('visitor_total', 'hiking_date');
+
+        $packageTotals = PackageBooking::query()
+            ->selectRaw('hiking_date, SUM(tourist_count) as visitor_total')
+            ->whereBetween('hiking_date', [$from, $to])
+            ->whereNotIn('status', ['CANCELLED', 'REJECTED'])
+            ->where(function ($query) {
+                $query->whereNull('denr_status')
+                    ->orWhere('denr_status', '!=', 'REJECTED');
+            })
+            ->groupBy('hiking_date')
+            ->pluck('visitor_total', 'hiking_date');
+
+        $blockedDates = BlockedDate::query()
+            ->whereBetween('date', [$from, $to])
+            ->get(['date', 'reason'])
+            ->keyBy(fn (BlockedDate $blockedDate) => $blockedDate->date->format('Y-m-d'));
+
+        $availability = [];
+
+        foreach (CarbonPeriod::create($from, $to) as $day) {
+            $date = $day->format('Y-m-d');
+            $currentCapacity = (int) ($directTotals[$date] ?? 0)
+                + (int) ($packageTotals[$date] ?? 0);
+            $remainingCapacity = max(0, self::MAXIMUM_CAPACITY - $currentCapacity);
+            $blockedDate = $blockedDates->get($date);
+
+            $availability[] = [
+                'date' => $date,
+                'current_capacity' => $currentCapacity,
+                'maximum_capacity' => self::MAXIMUM_CAPACITY,
+                'remaining_capacity' => $remainingCapacity,
+                'is_full' => $remainingCapacity === 0,
+                'is_blocked' => $blockedDate !== null,
+                'blocked_reason' => $blockedDate?->reason,
+                'is_available' => $blockedDate === null && $remainingCapacity > 0,
+            ];
+        }
+
+        return $availability;
     }
 
     /**
@@ -90,7 +151,7 @@ class BookingCapacityService
     ): bool {
         $summary = $this->getSummary($date);
 
-        return (
+        return !$summary['is_blocked'] && (
             $summary['current_capacity'] + $requestedVisitors
         ) <= self::MAXIMUM_CAPACITY;
     }

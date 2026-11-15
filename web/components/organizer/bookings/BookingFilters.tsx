@@ -39,6 +39,7 @@ export default function BookingFilters() {
           options={[
             "All Status",
             "Pending",
+            "Awaiting DENR",
             "Confirmed",
             "Rejected",
             "Cancelled",

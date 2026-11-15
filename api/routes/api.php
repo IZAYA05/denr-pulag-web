@@ -2,7 +2,12 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BookingCapacityController;
+use App\Http\Controllers\Api\BlockedDateController;
+use App\Http\Controllers\Api\AnnouncementController;
+use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\MessageAttachmentController;
 use App\Http\Controllers\Api\Admin\ActivityLogController;
+use App\Http\Controllers\Api\Admin\OrganizerPackageReviewController;
 use App\Http\Controllers\Api\Admin\ReportController;
 use App\Http\Controllers\Api\EmployeeDashboardController;
 use App\Http\Controllers\Api\NotificationController;
@@ -30,6 +35,8 @@ Route::get('/trails', [TrailController::class, 'index']);
 Route::get('/trails/{trail}', [TrailController::class, 'show']);
 
 Route::get('/packages', [PackageCatalogController::class, 'index']);
+Route::get('/announcements', [AnnouncementController::class, 'index']);
+Route::get('/booking-availability', [BlockedDateController::class, 'availability']);
 
 
 /*
@@ -38,9 +45,24 @@ Route::get('/packages', [PackageCatalogController::class, 'index']);
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
 
     Route::get('/booking-capacity', [BookingCapacityController::class, 'show']);
+    Route::get('/blocked-dates', [BlockedDateController::class, 'index']);
+
+    Route::get('/conversations', [ConversationController::class, 'index']);
+    Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
+    Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'sendMessage']);
+    Route::get('/message-attachments/{attachment}', [MessageAttachmentController::class, 'show']);
+
+    Route::middleware('role:USER')->group(function () {
+        Route::post('/conversations', [ConversationController::class, 'store']);
+        Route::post('/conversations/{conversation}/organizer-application/resubmit', [ConversationController::class, 'resubmitOrganizerApplication']);
+    });
+
+    Route::middleware('role:ADMIN')->patch('/conversations/{conversation}/organizer-application/review', [ConversationController::class, 'reviewOrganizerApplication']);
+
+    Route::middleware('role:ADMIN,EMPLOYEE')->post('/conversations/{conversation}/reservation', [ConversationController::class, 'createOfficialReservation']);
 
     /*
     |--------------------------------------------------------------------------
@@ -142,6 +164,21 @@ Route::middleware('auth:sanctum')->group(function () {
             TrailController::class,
             'adminIndex',
         ]);
+
+        Route::get('/admin/announcements', [AnnouncementController::class, 'adminIndex']);
+        Route::post('/admin/announcements', [AnnouncementController::class, 'store']);
+        Route::put('/admin/announcements/{announcement}', [AnnouncementController::class, 'update']);
+        Route::delete('/admin/announcements/{announcement}', [AnnouncementController::class, 'destroy']);
+
+        Route::get('/admin/organizer-packages', [
+            OrganizerPackageReviewController::class,
+            'index',
+        ]);
+
+        Route::patch('/admin/organizer-packages/{package}/review', [
+            OrganizerPackageReviewController::class,
+            'review',
+        ]);
     });
 
 
@@ -168,6 +205,9 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::middleware('role:ADMIN,EMPLOYEE')->group(function () {
+
+        Route::post('/blocked-dates', [BlockedDateController::class, 'store']);
+        Route::delete('/blocked-dates/{blockedDate}', [BlockedDateController::class, 'destroy']);
 
         Route::get('/staff/walk-in-package', [
             WalkInPackageController::class,
@@ -202,7 +242,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'show',
     ]);
 
-    Route::post('/reservations', [ReservationController::class, 'store'])->middleware('booking.creation');
+    Route::post('/reservations', [ReservationController::class, 'store'])->middleware(['role:USER', 'booking.creation']);
 
     Route::delete('/reservations/{reservation}', [
         ReservationController::class,
@@ -339,7 +379,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'show',
     ]);
 
-    Route::post('/package-bookings', [PackageBookingController::class, 'store'])->middleware('booking.creation');
+    Route::post('/package-bookings', [PackageBookingController::class, 'store'])->middleware(['role:USER', 'booking.creation']);
 
     Route::delete('/package-bookings/{packageBooking}', [
         PackageBookingController::class,

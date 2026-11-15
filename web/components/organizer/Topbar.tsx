@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { revokeLaravelSession } from "@/lib/logout";
 
 import { ChevronDown, Menu, Search } from "lucide-react";
 
@@ -15,36 +15,12 @@ type TopbarProps = {
 };
 
 export default function Topbar({ setIsOpen }: TopbarProps) {
-  const pathname = usePathname();
   const { data: session } = useSession();
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  const pageTitle = useMemo(() => {
-    const routes: Record<string, string> = {
-      "/organizer": "Dashboard",
-      "/organizer/packages": "My Packages",
-      "/organizer/bookings": "Package Bookings",
-      "/organizer/groups": "Groups",
-      "/organizer/profile": "Profile",
-    };
-
-    if (pathname.startsWith("/organizer/packages/")) {
-      return "My Packages";
-    }
-
-    if (pathname.startsWith("/organizer/bookings/")) {
-      return "Package Bookings";
-    }
-
-    if (pathname.startsWith("/organizer/groups/")) {
-      return "Groups";
-    }
-
-    return routes[pathname] ?? "Dashboard";
-  }, [pathname]);
-
   async function handleLogout() {
+    await revokeLaravelSession(session?.user?.accessToken);
     await signOut({
       callbackUrl: "/",
     });
@@ -77,7 +53,7 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
 
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
-              {pageTitle}
+              E-PULAG Organizer Portal
             </h1>
 
             <p className="text-sm text-zinc-500 dark:text-zinc-400">

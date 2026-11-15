@@ -196,6 +196,18 @@ class PackageBookingController extends Controller
             'services',
         ])->findOrFail($validated['package_id']);
 
+        if ($package->is_walk_in) {
+            return response()->json([
+                'message' => 'The Walk-in Package can only be processed by DENR staff and cannot be booked online.',
+            ], 422);
+        }
+
+        if ($package->approval_status !== 'APPROVED') {
+            return response()->json([
+                'message' => 'This package is not yet approved for public booking.',
+            ], 422);
+        }
+
         if ($package->status !== 'ACTIVE') {
             return response()->json([
                 'message' => 'This package is currently inactive.',

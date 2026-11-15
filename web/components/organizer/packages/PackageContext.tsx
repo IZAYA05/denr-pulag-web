@@ -13,6 +13,7 @@ import {
 import { useSession } from "next-auth/react";
 
 export type PackageStatus = "Active" | "Inactive";
+export type PackageApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export type ApiPackageService = {
   id: number;
@@ -28,6 +29,8 @@ export type ApiOrganizerPackage = {
   price: string | number;
   max_tourists: number;
   status: string;
+  approval_status?: string;
+  approval_notes?: string | null;
   services: ApiPackageService[];
   created_at?: string;
   updated_at?: string;
@@ -41,6 +44,8 @@ export type OrganizerPackage = {
   services: string[];
   maxTourists: number;
   status: PackageStatus;
+  approvalStatus: PackageApprovalStatus;
+  approvalNotes: string | null;
 };
 
 export type PackageFormData = {
@@ -68,6 +73,7 @@ type PackageContextValue = {
   totalPackages: number;
   activePackages: number;
   inactivePackages: number;
+  pendingApprovalPackages: number;
   setSearch: (value: string) => void;
   setStatusFilter: (value: string) => void;
   openCreate: () => void;
@@ -102,6 +108,8 @@ function formatApiPackage(
       : [],
     maxTourists: Number(packageItem.max_tourists),
     status: formatApiStatus(packageItem.status),
+    approvalStatus: (packageItem.approval_status || "APPROVED").toUpperCase() as PackageApprovalStatus,
+    approvalNotes: packageItem.approval_notes ?? null,
   };
 }
 
@@ -230,10 +238,12 @@ export function PackageProvider({
 
   useEffect(() => {
     if (sessionStatus === "authenticated") {
-      void refreshPackages();
+      void Promise.resolve().then(refreshPackages);
     } else if (sessionStatus === "unauthenticated") {
-      setPackages([]);
-      setLoading(false);
+      void Promise.resolve().then(() => {
+        setPackages([]);
+        setLoading(false);
+      });
     }
   }, [refreshPackages, sessionStatus]);
 
@@ -455,11 +465,15 @@ export function PackageProvider({
   const totalPackages = packages.length;
 
   const activePackages = packages.filter(
-    (item) => item.status === "Active"
+    (item) => item.status === "Active" && item.approvalStatus === "APPROVED"
   ).length;
 
   const inactivePackages = packages.filter(
-    (item) => item.status === "Inactive"
+    (item) => item.status === "Inactive" || item.approvalStatus === "REJECTED"
+  ).length;
+
+  const pendingApprovalPackages = packages.filter(
+    (item) => item.approvalStatus === "PENDING"
   ).length;
 
   const value = useMemo<PackageContextValue>(
@@ -480,6 +494,7 @@ export function PackageProvider({
       totalPackages,
       activePackages,
       inactivePackages,
+      pendingApprovalPackages,
       setSearch,
       setStatusFilter,
       openCreate,
@@ -509,6 +524,7 @@ export function PackageProvider({
       totalPackages,
       activePackages,
       inactivePackages,
+      pendingApprovalPackages,
       openCreate,
       openEdit,
       openView,

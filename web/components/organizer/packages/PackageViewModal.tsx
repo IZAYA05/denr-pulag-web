@@ -54,6 +54,35 @@ export default function PackageViewModal({
           </Badge>
         </div>
 
+        <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            DENR package review
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Badge
+              variant={
+                packageItem.approvalStatus === "APPROVED"
+                  ? "success"
+                  : packageItem.approvalStatus === "REJECTED"
+                    ? "danger"
+                    : "warning"
+              }
+            >
+              {packageItem.approvalStatus}
+            </Badge>
+          </div>
+          {packageItem.approvalNotes && (
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+              Feedback: {packageItem.approvalNotes}
+            </p>
+          )}
+          {packageItem.approvalStatus === "PENDING" && (
+            <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
+              This package is not visible in the public catalog until DENR approves it.
+            </p>
+          )}
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-900">
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">

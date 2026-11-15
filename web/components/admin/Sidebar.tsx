@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
+  BadgeCheck,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -11,6 +12,7 @@ import {
   FileBarChart2,
   LayoutDashboard,
   Mountain,
+  MessageSquare,
   Package,
   ShieldCheck,
   Users,
@@ -53,6 +55,11 @@ const navigation = [
         href: "/admin/calendar",
         icon: CalendarDays,
       },
+      {
+        label: "Chatbox",
+        href: "/admin/chatbox",
+        icon: MessageSquare,
+      },
     ],
   },
   {
@@ -62,6 +69,11 @@ const navigation = [
         label: "Walk-in Package",
         href: "/admin/packages",
         icon: Package,
+      },
+      {
+        label: "Package Approvals",
+        href: "/admin/package-approvals",
+        icon: BadgeCheck,
       },
       {
         label: "Announcements",

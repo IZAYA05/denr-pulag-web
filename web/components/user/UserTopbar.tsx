@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
+import { revokeLaravelSession } from "@/lib/logout";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -13,6 +14,7 @@ import {
 
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NotificationBell from "@/components/shared/notifications/NotificationBell";
+import MessagesLauncher from "@/components/shared/messages/MessagesLauncher";
 
 type UserTopbarProps = {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -22,6 +24,7 @@ function getPageTitle(pathname: string) {
   if (pathname === "/user") return "Browse Packages";
   if (pathname.startsWith("/user/book")) return "Book a Package";
   if (pathname.startsWith("/user/reservations")) return "My Reservations";
+  if (pathname.startsWith("/user/chatbox")) return "Chatbox";
   if (pathname.startsWith("/user/announcements")) return "Announcements";
   if (pathname.startsWith("/user/profile")) return "My Profile";
 
@@ -68,6 +71,7 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
 
   async function handleSignOut() {
     setDropdownOpen(false);
+    await revokeLaravelSession(session?.user?.accessToken);
 
     await signOut({
       callbackUrl: "/",
@@ -113,6 +117,7 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
 
           {/* Functional Notifications */}
           <NotificationBell />
+          <MessagesLauncher href="/messages/popup" destinationHref="/user/chatbox" />
 
           {/* Profile menu */}
           <div className="relative" ref={dropdownRef}>
@@ -196,4 +201,3 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
     </header>
   );
 }
-0

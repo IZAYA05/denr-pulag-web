@@ -413,6 +413,15 @@ export default function BookPackage({
       return;
     }
 
+    if (capacitySummary.is_blocked) {
+      setError(
+        capacitySummary.blocked_reason
+          ? `This hiking date is unavailable: ${capacitySummary.blocked_reason}`
+          : "This hiking date has been blocked by DENR and cannot be booked."
+      );
+      return;
+    }
+
     if (capacitySummary.is_full || tourists.length > capacitySummary.remaining_capacity) {
       setError("There are not enough visitor slots remaining for your group on this hiking date.");
       return;
@@ -995,6 +1004,7 @@ export default function BookPackage({
               !capacitySummary ||
               capacitySummary.date !== hikingDate ||
               capacitySummary.is_full ||
+              capacitySummary.is_blocked ||
               tourists.length > capacitySummary.remaining_capacity
             }
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-4 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"

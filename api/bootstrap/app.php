@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'account.active' => \App\Http\Middleware\EnsureAccountIsActive::class,
             'booking.creation' => \App\Http\Middleware\BookingCreationPolicy::class,
             'booking.approval-window' => \App\Http\Middleware\BookingApprovalWindow::class,
         ]);

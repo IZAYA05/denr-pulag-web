@@ -18,6 +18,7 @@ export default function PackageStats() {
     totalPackages,
     activePackages,
     inactivePackages,
+    pendingApprovalPackages,
     openCreate,
   } = usePackages();
 
@@ -34,7 +35,7 @@ export default function PackageStats() {
         }
       />
 
-      <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Total Packages"
           value={totalPackages}
@@ -53,6 +54,16 @@ export default function PackageStats() {
           iconColor="text-emerald-600"
         >
           <ToggleRight className="h-7 w-7" />
+        </StatCard>
+
+        <StatCard
+          title="Awaiting DENR Review"
+          value={pendingApprovalPackages}
+          subtitle="Packages not yet approved for public listing"
+          iconBg="bg-amber-100 dark:bg-amber-900/30"
+          iconColor="text-amber-600"
+        >
+          <Package className="h-7 w-7" />
         </StatCard>
 
         <StatCard

@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import PublicAvailabilityCalendar from "@/components/landing/PublicAvailabilityCalendar";
 
 const Hero = () => {
   return (
@@ -21,6 +22,7 @@ const Hero = () => {
       {/* Content */}
 
       <div className="container-width relative z-10">
+        <div className="grid items-center gap-12 py-28 lg:grid-cols-[minmax(0,1fr)_430px] lg:gap-14">
         <div className="max-w-3xl">
           {/* Badge */}
 
@@ -31,7 +33,7 @@ const Hero = () => {
             className="mb-6 inline-flex items-center rounded-full border border-zinc-300/60 bg-white/70 px-4 py-2 backdrop-blur-md dark:border-white/10 dark:bg-white/10"
           >
             <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              Unofficial Mount Pulag Reservation System
+              E-PULAG · Mount Pulag Booking System
             </span>
           </motion.div>
 
@@ -91,6 +93,11 @@ const Hero = () => {
               Learn More
             </a>
           </motion.div>
+        </div>
+
+        <div className="flex justify-center lg:justify-end">
+          <PublicAvailabilityCalendar />
+        </div>
         </div>
       </div>
     </section>

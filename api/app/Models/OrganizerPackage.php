@@ -19,6 +19,10 @@ class OrganizerPackage extends Model
         'price',
         'max_tourists',
         'status',
+        'approval_status',
+        'reviewed_by',
+        'reviewed_at',
+        'approval_notes',
     ];
 
     protected function casts(): array
@@ -27,6 +31,7 @@ class OrganizerPackage extends Model
             'is_walk_in' => 'boolean',
             'price' => 'decimal:2',
             'max_tourists' => 'integer',
+            'reviewed_at' => 'datetime',
         ];
     }
 
@@ -43,5 +48,10 @@ class OrganizerPackage extends Model
     public function bookings(): HasMany
     {
         return $this->hasMany(PackageBooking::class, 'package_id');
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 }

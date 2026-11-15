@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 
 type BookingStatus =
   | "Pending"
+  | "Awaiting DENR"
   | "Confirmed"
   | "Rejected"
   | "Cancelled"
@@ -49,6 +50,7 @@ export interface ApiPackageBooking {
   hiking_date: string;
   tourist_count: number;
   status: ApiBookingStatus;
+  denr_status?: string | null;
   remarks: string | null;
   package: ApiPackage;
   trail: ApiTrail;
@@ -59,27 +61,18 @@ interface BookingDetailsModalProps {
   onClose: () => void;
 }
 
-export function formatBookingStatus(
-  status: ApiBookingStatus
-): BookingStatus {
-  switch (status) {
-    case "APPROVED":
-    case "CONFIRMED":
-      return "Confirmed";
+export function formatBookingStatus(booking: ApiPackageBooking): BookingStatus {
+  const organizerStatus = String(booking.status || "").toUpperCase();
+  const denrStatus = String(booking.denr_status || "").toUpperCase();
 
-    case "REJECTED":
-      return "Rejected";
+  if (organizerStatus === "REJECTED" || denrStatus === "REJECTED") return "Rejected";
+  if (organizerStatus === "CANCELLED") return "Cancelled";
+  if (organizerStatus === "COMPLETED") return "Completed";
+  if (organizerStatus === "PENDING") return "Pending";
+  if (organizerStatus === "APPROVED" && denrStatus === "PENDING") return "Awaiting DENR";
+  if (organizerStatus === "APPROVED" && denrStatus === "APPROVED") return "Confirmed";
 
-    case "CANCELLED":
-      return "Cancelled";
-
-    case "COMPLETED":
-      return "Completed";
-
-    case "PENDING":
-    default:
-      return "Pending";
-  }
+  return "Pending";
 }
 
 function formatDate(date: string) {
@@ -111,6 +104,7 @@ function getBookingStatusVariant(status: BookingStatus) {
       return "success" as const;
 
     case "Pending":
+    case "Awaiting DENR":
       return "warning" as const;
 
     case "Completed":
@@ -133,7 +127,7 @@ export default function BookingDetailsModal({
     booking.package?.max_tourists ?? 12
   );
 
-  const bookingStatus = formatBookingStatus(booking.status);
+  const bookingStatus = formatBookingStatus(booking);
 
   return (
     <div

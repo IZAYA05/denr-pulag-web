@@ -53,11 +53,28 @@ export default function PackageCard({
           </p>
         </div>
 
-        <Badge
-          variant={status === "Active" ? "success" : "secondary"}
-        >
-          {status}
-        </Badge>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <Badge
+            variant={status === "Active" ? "success" : "secondary"}
+          >
+            {status}
+          </Badge>
+          <Badge
+            variant={
+              packageItem.approvalStatus === "APPROVED"
+                ? "success"
+                : packageItem.approvalStatus === "REJECTED"
+                  ? "danger"
+                  : "warning"
+            }
+          >
+            {packageItem.approvalStatus === "APPROVED"
+              ? "DENR Approved"
+              : packageItem.approvalStatus === "REJECTED"
+                ? "DENR Rejected"
+                : "Awaiting DENR"}
+          </Badge>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-6">
@@ -125,16 +142,18 @@ export default function PackageCard({
 
           <Button
             variant="secondary"
-            disabled={isToggling || isDeleting}
+            disabled={isToggling || isDeleting || packageItem.approvalStatus !== "APPROVED"}
             onClick={() => void onToggleStatus(packageItem)}
           >
             <Power className="mr-1.5 h-4 w-4" />
 
             {isToggling
               ? "..."
-              : status === "Active"
-                ? "Off"
-                : "On"}
+              : packageItem.approvalStatus !== "APPROVED"
+                ? "Review"
+                : status === "Active"
+                  ? "Off"
+                  : "On"}
           </Button>
 
           <Button

@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { revokeLaravelSession } from "@/lib/logout";
 import {
   Menu,
   Search,
@@ -12,6 +13,7 @@ import {
 
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NotificationBell from "@/components/shared/notifications/NotificationBell";
+import MessagesLauncher from "@/components/shared/messages/MessagesLauncher";
 
 type TopbarProps = {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -21,26 +23,30 @@ export default function Topbar({
   setIsOpen,
 }: TopbarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   const pageTitle = useMemo(() => {
     const routes: Record<string, string> = {
-      "/dashboard": "Dashboard",
-      "/reservations": "Reservations",
-      "/visitors": "Visitors",
-      "/trails": "Trails",
-      "/calendar": "Calendar",
-      "/announcements": "Announcements",
-      "/reports": "Reports",
-      "/users": "Users",
-      "/profile": "Profile",
-      "/settings": "Settings",
-      "/(Landing Page)": "Logout",
+      "/admin": "Dashboard",
+      "/admin/reservations": "Reservations",
+      "/admin/visitors": "Visitors",
+      "/admin/trails": "Trails",
+      "/admin/calendar": "Calendar",
+      "/admin/chatbox": "Chatbox",
+      "/admin/packages": "Walk-in Package",
+      "/admin/package-approvals": "Package Approvals",
+      "/admin/announcements": "Announcements",
+      "/admin/reports": "Reports",
+      "/admin/users": "Users",
+      "/admin/profile": "Profile",
+      "/admin/settings": "Settings",
     };
 
     return routes[pathname] ?? "Dashboard";
   }, [pathname]);
 
   async function handleLogout() {
+    await revokeLaravelSession(session?.user?.accessToken);
     await signOut({
       callbackUrl: "/",
     });
@@ -101,6 +107,7 @@ export default function Topbar({
           {/* Notifications */}
 
           <NotificationBell />
+          <MessagesLauncher href="/messages/popup" destinationHref="/admin/chatbox" />
 
           {/* Profile */}
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { revokeLaravelSession } from "@/lib/logout";
 import {
   ChevronDown,
   LogOut,
@@ -14,6 +15,7 @@ import {
 
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NotificationBell from "@/components/shared/notifications/NotificationBell";
+import MessagesLauncher from "@/components/shared/messages/MessagesLauncher";
 
 type EmployeeTopbarProps = {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -31,6 +33,7 @@ export default function EmployeeTopbar({
       "/employee": "Dashboard",
       "/employee/bookings": "Bookings",
       "/employee/visitors": "Visitors",
+      "/employee/chatbox": "Chatbox",
       "/employee/reports": "Daily Reports",
       "/employee/trails": "Trail Schedules",
       "/employee/profile": "My Profile",
@@ -62,6 +65,7 @@ export default function EmployeeTopbar({
       .join("") || "E";
 
   async function handleLogout() {
+    await revokeLaravelSession(session?.user?.accessToken);
     await signOut({ callbackUrl: "/login" });
   }
 
@@ -130,6 +134,7 @@ export default function EmployeeTopbar({
 
           {/* Notifications */}
           <NotificationBell />
+          <MessagesLauncher href="/messages/popup" destinationHref="/employee/chatbox" />
 
           {/* Profile Menu */}
           <details className="group relative">

@@ -13,6 +13,7 @@ class PackageCatalogController extends Controller
         $packages = OrganizerPackage::with('services')
             ->where('is_walk_in', false)
             ->where('status', 'ACTIVE')
+            ->where('approval_status', 'APPROVED')
             ->latest()
             ->get();
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { ShieldCheck, LogOut } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { revokeLaravelSession } from "@/lib/logout";
 
 import { useProfile, ProfileProvider } from "./ProfileContext";
 
@@ -15,6 +16,13 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 
 function EmployeeAccountActions() {
+  const { data: session } = useSession();
+
+  async function handleSignOut() {
+    await revokeLaravelSession(session?.user?.accessToken);
+    await signOut({ callbackUrl: "/login" });
+  }
+
   return (
     <Card className="p-6">
       <div className="mb-5">
@@ -47,7 +55,7 @@ function EmployeeAccountActions() {
         type="button"
         variant="danger"
         className="mt-5 w-full gap-2"
-        onClick={() => void signOut({ callbackUrl: "/login" })}
+        onClick={() => void handleSignOut()}
       >
         <LogOut className="h-4 w-4" />
         Sign Out
