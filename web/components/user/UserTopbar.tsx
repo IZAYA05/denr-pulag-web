@@ -20,16 +20,6 @@ type UserTopbarProps = {
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-function getPageTitle(pathname: string) {
-  if (pathname === "/user") return "Browse Packages";
-  if (pathname.startsWith("/user/book")) return "Book a Package";
-  if (pathname.startsWith("/user/reservations")) return "My Reservations";
-  if (pathname.startsWith("/user/chatbox")) return "Chatbox";
-  if (pathname.startsWith("/user/announcements")) return "Announcements";
-  if (pathname.startsWith("/user/profile")) return "My Profile";
-
-  return "E-PULAG Portal";
-}
 
 export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
   const router = useRouter();
@@ -42,7 +32,6 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
   const userName = session?.user?.name?.trim() || "User";
   const userEmail = session?.user?.email || "Visitor";
   const initial = userName.charAt(0).toUpperCase() || "U";
-  const pageTitle = getPageTitle(pathname);
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
@@ -98,13 +87,11 @@ export default function UserTopbar({ setIsOpen }: UserTopbarProps) {
               <Mountain className="hidden h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-400 sm:block" />
 
               <h1 className="truncate text-base font-bold tracking-tight text-zinc-900 dark:text-white sm:text-lg">
-                {pageTitle}
+                E-PULAG User Portal
               </h1>
             </div>
 
-            <p className="mt-1 hidden truncate text-xs text-zinc-500 dark:text-zinc-400 sm:block">
-              Your Mount Pulag journey starts here.
-            </p>
+
           </div>
         </div>
 

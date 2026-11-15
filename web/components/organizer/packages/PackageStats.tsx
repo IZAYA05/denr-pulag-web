@@ -26,7 +26,7 @@ export default function PackageStats() {
     <div className="space-y-6">
       <PageHeader
         title="My Packages"
-        description="Create and manage the travel packages you offer to tourists."
+
         actions={
           <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />

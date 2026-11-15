@@ -52,13 +52,9 @@ export default function Topbar({ setIsOpen }: TopbarProps) {
           </button>
 
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
+            <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-white sm:text-xl">
               E-PULAG Organizer Portal
             </h1>
-
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Welcome back to your E-PULAG Organizer Portal.
-            </p>
           </div>
         </div>
 

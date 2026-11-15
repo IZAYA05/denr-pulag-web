@@ -183,9 +183,6 @@ export default function OrganizerPackageApprovals() {
               Package Approvals
             </h2>
           </div>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-            Review organizer-submitted packages before they become visible in the public package catalog.
-          </p>
         </div>
         <Button type="button" variant="outline" onClick={() => void loadPackages()} disabled={loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />

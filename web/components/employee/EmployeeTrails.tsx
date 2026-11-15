@@ -295,19 +295,6 @@ export default function EmployeeTrails() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-          Employee Portal
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-          Trail Information
-        </h1>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Review available trails, difficulty levels, capacities, and approved
-          bookings.
-        </p>
-      </div>
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="Total Trails" value={trails.length} />
         <SummaryCard label="Active Trails" value={activeCount} />

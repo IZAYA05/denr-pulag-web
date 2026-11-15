@@ -501,9 +501,8 @@ export default function Chatbox({ mode, embedded = false }: { mode: ChatboxMode;
     }
   }
 
-  const pageTitle = "Messages";
   const pageDescription = isStaff
-    ? "Review visitor reservation coordination requests and organizer role applications."
+    ? ""
     : "Message DENR staff to coordinate reservation slots or apply for an Organizer account.";
 
   return (
@@ -511,11 +510,7 @@ export default function Chatbox({ mode, embedded = false }: { mode: ChatboxMode;
       <div className={`flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between ${embedded ? "sm:items-center" : ""}`}>
         {!embedded && (
           <div>
-            <div className="flex items-center gap-2">
-              <MessageCircle className="h-6 w-6 text-emerald-600" />
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{pageTitle}</h1>
-            </div>
-            <p className="mt-2 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">{pageDescription}</p>
+            <p className="max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">{pageDescription}</p>
           </div>
         )}
         <div className="flex gap-2">

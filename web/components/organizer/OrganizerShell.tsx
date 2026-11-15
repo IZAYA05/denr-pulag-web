@@ -39,7 +39,7 @@ export default function OrganizerShell({
         <Topbar setIsOpen={setIsOpen} />
 
         <main className="p-6">
-          <div className="w-full max-w-[1600px]">
+          <div className="dashboard-content w-full max-w-[1600px]">
             {children}
           </div>
         </main>

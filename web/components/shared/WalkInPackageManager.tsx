@@ -40,7 +40,7 @@ export default function WalkInPackageManager() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [maxTourists, setMaxTourists] = useState("12");
+  const maxTourists = "1";
   const [services, setServices] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -53,7 +53,6 @@ export default function WalkInPackageManager() {
     setName(pkg.name);
     setDescription(pkg.description);
     setPrice(String(pkg.price));
-    setMaxTourists(String(pkg.max_tourists));
     setServices(pkg.services.map((item) => item.service).join("\n"));
   }
 
@@ -141,7 +140,7 @@ export default function WalkInPackageManager() {
       name: name.trim(),
       description: description.trim(),
       price: Number(price),
-      max_tourists: Number(maxTourists),
+      max_tourists: 1,
       services: serviceList,
     };
 
@@ -155,14 +154,6 @@ export default function WalkInPackageManager() {
       return;
     }
 
-    if (
-      !Number.isInteger(payload.max_tourists) ||
-      payload.max_tourists < 1 ||
-      payload.max_tourists > 12
-    ) {
-      setError("The maximum number of tourists must be between 1 and 12.");
-      return;
-    }
 
     setSaving(true);
 
@@ -231,17 +222,8 @@ export default function WalkInPackageManager() {
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
               Walk-in Package
             </h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              Manage the shared package used for visitors who book in person.
-            </p>
           </div>
         </div>
-      </div>
-
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
-        Only one Walk-in Package is allowed. Admin and Employee accounts edit
-        the same package. It is not displayed in the public online package
-        catalog.
       </div>
 
       {error && (
@@ -332,24 +314,7 @@ export default function WalkInPackageManager() {
             />
           </label>
 
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Maximum tourists
-            </span>
-            <input
-              required
-              type="number"
-              min="1"
-              max="12"
-              step="1"
-              value={maxTourists}
-              onChange={(event) => setMaxTourists(event.target.value)}
-              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
-            />
-            <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-              Maximum of 12 tourists per group.
-            </span>
-          </label>
+
 
           <label className="space-y-2 sm:col-span-2">
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">

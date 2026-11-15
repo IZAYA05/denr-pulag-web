@@ -31,7 +31,7 @@ export default function EmployeeShell({
         <EmployeeTopbar setIsOpen={setIsOpen} />
 
         <main className="p-4 md:p-6">
-          <div className="w-full max-w-[1600px]">
+          <div className="dashboard-content w-full max-w-[1600px]">
             {children}
           </div>
         </main>

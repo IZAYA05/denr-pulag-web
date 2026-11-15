@@ -20,9 +20,6 @@ export default function UserProfileHeader({
           <p className="text-sm text-emerald-200">
             Account Settings
           </p>
-          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">
-            My Profile
-          </h1>
           <p className="mt-1 text-sm text-emerald-100/80">
             View your account information.
           </p>

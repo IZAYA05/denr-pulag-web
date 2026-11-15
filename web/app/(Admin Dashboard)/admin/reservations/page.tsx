@@ -11,9 +11,6 @@ export default function ReservationsPage() {
             Direct Reservations
           </h2>
 
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Manage direct reservations submitted by tourists and organizers.
-          </p>
         </div>
 
         <ReservationStats />

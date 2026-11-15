@@ -197,8 +197,7 @@ export default function AnnouncementManagement() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-2"><Bell className="h-6 w-6 text-emerald-600" /><h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Announcements</h1></div>
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Publish visitor updates, park advisories, and reservation reminders.</p>
+          <div className="flex items-center gap-2" aria-hidden="true"><Bell className="h-5 w-5 text-emerald-600" /></div>
         </div>
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={() => void loadAnnouncements()} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button>

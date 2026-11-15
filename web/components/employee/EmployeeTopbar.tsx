@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
@@ -27,26 +27,6 @@ export default function EmployeeTopbar({
   const pathname = usePathname();
   const { data: session } = useSession();
   const [search, setSearch] = useState("");
-
-  const pageTitle = useMemo(() => {
-    const routes: Record<string, string> = {
-      "/employee": "Dashboard",
-      "/employee/bookings": "Bookings",
-      "/employee/visitors": "Visitors",
-      "/employee/chatbox": "Chatbox",
-      "/employee/reports": "Daily Reports",
-      "/employee/trails": "Trail Schedules",
-      "/employee/profile": "My Profile",
-    };
-
-    if (routes[pathname]) return routes[pathname];
-
-    if (pathname.startsWith("/employee/bookings/")) {
-      return "Booking Details";
-    }
-
-    return "Employee Workspace";
-  }, [pathname]);
 
   const firstName = session?.user?.firstName;
   const lastName = session?.user?.lastName;
@@ -83,13 +63,9 @@ export default function EmployeeTopbar({
           </button>
 
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold tracking-tight text-zinc-900 dark:text-white sm:text-2xl">
-              {pageTitle}
+            <h1 className="truncate text-lg font-semibold tracking-tight text-zinc-900 dark:text-white sm:text-xl">
+              E-PULAG Employee Portal
             </h1>
-
-            <p className="hidden text-sm text-zinc-500 dark:text-zinc-400 sm:block">
-              Welcome back to E-PULAG Employee Workspace.
-            </p>
           </div>
         </div>
 

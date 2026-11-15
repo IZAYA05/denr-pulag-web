@@ -454,20 +454,6 @@ export default function EmployeeReports() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-            Employee Portal
-          </p>
-
-          <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-            Daily Reports
-          </h1>
-
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Review daily booking activity and visitor totals.
-          </p>
-        </div>
-
         <div className="flex flex-col gap-2 sm:min-w-64">
           <label
             htmlFor="report-date"

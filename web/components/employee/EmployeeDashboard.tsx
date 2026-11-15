@@ -33,20 +33,6 @@ const quickLinks = [
 export default function EmployeeDashboard() {
   return (
     <div className="space-y-8">
-      <section>
-        <p className="text-sm font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-          Employee Workspace
-        </p>
-
-        <h2 className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">
-          Dashboard Overview
-        </h2>
-
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-          Monitor Mount Pulag bookings, visitor activity, and trail information
-          from your employee workspace.
-        </p>
-      </section>
 
       <EmployeeStats />
 

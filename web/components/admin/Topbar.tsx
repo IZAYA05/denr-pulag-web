@@ -1,8 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { revokeLaravelSession } from "@/lib/logout";
 import {
@@ -22,28 +20,8 @@ type TopbarProps = {
 export default function Topbar({
   setIsOpen,
 }: TopbarProps) {
-  const pathname = usePathname();
   const { data: session } = useSession();
 
-  const pageTitle = useMemo(() => {
-    const routes: Record<string, string> = {
-      "/admin": "Dashboard",
-      "/admin/reservations": "Reservations",
-      "/admin/visitors": "Visitors",
-      "/admin/trails": "Trails",
-      "/admin/calendar": "Calendar",
-      "/admin/chatbox": "Chatbox",
-      "/admin/packages": "Walk-in Package",
-      "/admin/package-approvals": "Package Approvals",
-      "/admin/announcements": "Announcements",
-      "/admin/reports": "Reports",
-      "/admin/users": "Users",
-      "/admin/profile": "Profile",
-      "/admin/settings": "Settings",
-    };
-
-    return routes[pathname] ?? "Dashboard";
-  }, [pathname]);
 
   async function handleLogout() {
     await revokeLaravelSession(session?.user?.accessToken);
@@ -71,13 +49,9 @@ export default function Topbar({
           </button>
 
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">
-              {pageTitle}
+            <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-white sm:text-xl">
+              E-PULAG Admin Portal
             </h1>
-
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Welcome back to E-PULAG Administration.
-            </p>
           </div>
         </div>
 

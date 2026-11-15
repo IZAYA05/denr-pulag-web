@@ -8,21 +8,16 @@ interface PageHeaderProps {
 
 export default function PageHeader({
   title,
-  description,
   actions,
 }: PageHeaderProps) {
   return (
     <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-white">
           {title}
         </h1>
 
-        {description && (
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {description}
-          </p>
-        )}
+
       </div>
 
       {actions && (

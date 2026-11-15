@@ -190,3 +190,53 @@ button {
   background: currentColor;
   color: var(--background);
 }
+
+/* =====================================================
+   DASHBOARD TYPOGRAPHY
+   A restrained scale for Admin, Employee, Organizer, and User portals.
+   Body text, controls, and small labels retain their existing sizes.
+===================================================== */
+
+.dashboard-content .text-2xl {
+  font-size: 1.25rem !important;
+  line-height: 1.75rem !important;
+}
+
+.dashboard-content .text-3xl {
+  font-size: 1.5rem !important;
+  line-height: 2rem !important;
+}
+
+.dashboard-content .text-4xl {
+  font-size: 1.875rem !important;
+  line-height: 2.25rem !important;
+}
+
+.dashboard-content .text-5xl {
+  font-size: 2.25rem !important;
+  line-height: 2.5rem !important;
+}
+
+@media (min-width: 640px) {
+  .dashboard-content .sm\:text-3xl {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+
+  .dashboard-content .sm\:text-4xl {
+    font-size: 1.875rem !important;
+    line-height: 2.25rem !important;
+  }
+
+  .dashboard-content .sm\:text-5xl {
+    font-size: 2.25rem !important;
+    line-height: 2.5rem !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-content .lg\:text-5xl {
+    font-size: 2.25rem !important;
+    line-height: 2.5rem !important;
+  }
+}

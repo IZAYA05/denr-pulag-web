@@ -398,21 +398,7 @@ export default function EmployeeVisitors() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-            Employee Workspace
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">
-            Visitor Records
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-            Search visitor information across direct reservations and
-            package bookings, including hiking schedules and approval
-            decisions.
-          </p>
-        </div>
-
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-end">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"

@@ -3,16 +3,10 @@ import MonthlyChart from "@/components/admin/MonthlyChart";
 import StatusChart from "@/components/admin/StatusChart";
 import RecentReservations from "@/components/admin/RecentReservations";
 
-import PageHeader from "@/components/ui/PageHeader";
 
 export default function DashboardPage() {
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description="Overview of reservations, visitors, and reports."
-      />
-
       {/* Statistics */}
       <DashboardStats />
 
