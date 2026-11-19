@@ -38,7 +38,6 @@ Route::get('/packages', [PackageCatalogController::class, 'index']);
 Route::get('/announcements', [AnnouncementController::class, 'index']);
 Route::get('/booking-availability', [BlockedDateController::class, 'availability']);
 
-
 /*
 |--------------------------------------------------------------------------
 | Authenticated Routes
@@ -78,7 +77,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
-
     /*
     |--------------------------------------------------------------------------
     | Profile Settings
@@ -105,7 +103,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         'loginActivity',
     ]);
 
-
     /*
     |--------------------------------------------------------------------------
     | Notification Routes
@@ -131,7 +128,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         NotificationController::class,
         'destroy',
     ]);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -161,16 +157,58 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
             'download',
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Trail Management
+        |--------------------------------------------------------------------------
+        */
+
         // Retrieve all trails, including inactive trails.
         Route::get('/admin/trails', [
             TrailController::class,
             'adminIndex',
         ]);
 
+        // Create a trail.
+        Route::post('/admin/trails', [
+            TrailController::class,
+            'store',
+        ]);
+
+        // Update trail information.
+        Route::post('/admin/trails/{trail}', [
+            TrailController::class,
+            'update',
+        ]);
+
+        // Activate or deactivate a trail.
+        Route::patch('/admin/trails/{trail}/status', [
+            TrailController::class,
+            'updateStatus',
+        ]);
+
+        // Delete a trail if no booking records exist.
+        Route::delete('/admin/trails/{trail}', [
+            TrailController::class,
+            'destroy',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Announcement Management
+        |--------------------------------------------------------------------------
+        */
+
         Route::get('/admin/announcements', [AnnouncementController::class, 'adminIndex']);
         Route::post('/admin/announcements', [AnnouncementController::class, 'store']);
         Route::put('/admin/announcements/{announcement}', [AnnouncementController::class, 'update']);
         Route::delete('/admin/announcements/{announcement}', [AnnouncementController::class, 'destroy']);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Organizer Package Review
+        |--------------------------------------------------------------------------
+        */
 
         Route::get('/admin/organizer-packages', [
             OrganizerPackageReviewController::class,
@@ -182,7 +220,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
             'review',
         ]);
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -198,7 +235,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         ]);
 
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -251,7 +287,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         'destroy',
     ]);
 
-
     /*
     |--------------------------------------------------------------------------
     | Admin and Employee Reservation Management
@@ -280,7 +315,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::patch('/admin/package-bookings/{packageBooking}/denr-status', [PackageBookingController::class, 'updateDenrStatus'])->middleware('booking.approval-window');
 
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -318,7 +352,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
             ]);
 
         });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -362,7 +395,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         Route::patch('/package-bookings/{packageBooking}/status', [PackageBookingController::class, 'updateStatus'])->middleware('booking.approval-window');
 
     });
-
 
     /*
     |--------------------------------------------------------------------------
