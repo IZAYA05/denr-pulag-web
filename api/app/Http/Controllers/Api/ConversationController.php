@@ -45,7 +45,13 @@ class ConversationController extends Controller
             ->orderByDesc('last_message_at')
             ->orderByDesc('updated_at');
 
-        if (!in_array(strtoupper((string) $user->role), ['ADMIN', 'EMPLOYEE'], true)) {
+        $role = strtoupper((string) $user->role);
+        $isStaff = in_array($role, ['ADMIN', 'EMPLOYEE'], true);
+
+        if ($isStaff) {
+            // Private USER <-> ORGANIZER conversations are never visible in staff Chatbox.
+            $query->whereRaw('UPPER(type) <> ?', ['DIRECT_MESSAGE']);
+        } else {
             $query->where(function ($participantQuery) use ($user) {
                 $participantQuery->where('user_id', $user->id)
                     ->orWhere('organizer_id', $user->id)
@@ -1070,8 +1076,20 @@ class ConversationController extends Controller
     {
         $user = $request->user();
         $role = strtoupper((string) $user->role);
+        $isStaff = in_array($role, ['ADMIN', 'EMPLOYEE'], true);
 
-        return in_array($role, ['ADMIN', 'EMPLOYEE'], true)
+        // Direct messages are private to their USER and ORGANIZER participants.
+        if (strtoupper((string) $conversation->type) === 'DIRECT_MESSAGE') {
+            return !$isStaff
+                && in_array($role, ['USER', 'ORGANIZER'], true)
+                && (
+                    (int) $conversation->user_id === (int) $user->id
+                    || (int) $conversation->recipient_id === (int) $user->id
+                );
+        }
+
+        // Staff retain access to the official DENR conversation workflows.
+        return $isStaff
             || (int) $conversation->user_id === (int) $user->id
             || (int) $conversation->organizer_id === (int) $user->id
             || (int) $conversation->recipient_id === (int) $user->id;

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\ConversationActivityLogger;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,6 +14,18 @@ class Message extends Model
         'sender_id',
         'body',
     ];
+
+    protected static function booted(): void
+    {
+        static::created(function (Message $message) {
+            $conversation = Conversation::query()
+                ->find($message->conversation_id);
+
+            if ($conversation) {
+                app(ConversationActivityLogger::class)->sync($conversation);
+            }
+        });
+    }
 
     public function conversation(): BelongsTo
     {

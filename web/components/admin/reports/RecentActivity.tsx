@@ -5,6 +5,8 @@ import {
   Activity,
   CalendarCheck,
   ClipboardList,
+  Clock,
+  MessageCircle,
   Mountain,
   RefreshCw,
   UserPlus,
@@ -13,6 +15,14 @@ import {
 import { useDashboard } from "@/components/admin/DashboardClient";
 import Card from "@/components/ui/Card";
 
+type ActivityActor = {
+  id?: number;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  role?: string;
+} | null;
+
 type ActivityLog = {
   id: number;
   action: string;
@@ -20,11 +30,27 @@ type ActivityLog = {
   description: string | null;
   role?: string;
   created_at: string;
-  user?: {
-    first_name?: string;
-    last_name?: string;
-    email?: string;
-    role?: string;
+
+  user?: ActivityActor;
+  initiatedBy?: ActivityActor;
+
+  conversation_id?: number | null;
+  initiated_by_user_id?: number | null;
+  message_count?: number;
+  first_activity_at?: string | null;
+  last_activity_at?: string | null;
+  conversation_status?: string | null;
+  conversation_type?: string | null;
+
+  conversation?: {
+    id: number;
+    type: string;
+    status: string;
+    subject?: string | null;
+    user_id?: number | null;
+    organizer_id?: number | null;
+    recipient_id?: number | null;
+    package_booking_id?: number | null;
   } | null;
 };
 
@@ -38,7 +64,11 @@ type ActivityResponse = {
 const API_URL =
   process.env.NEXT_PUBLIC_LARAVEL_API_URL || "http://localhost:18000";
 
-function formatTime(value: string) {
+function formatTime(value?: string | null) {
+  if (!value) {
+    return "Unknown date";
+  }
+
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -77,6 +107,9 @@ function getIcon(module: string) {
     case "PACKAGE_BOOKINGS":
       return ClipboardList;
 
+    case "MESSAGING":
+      return MessageCircle;
+
     default:
       return Activity;
   }
@@ -96,24 +129,36 @@ function getIconStyle(module: string) {
     case "USERS":
       return "bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400";
 
+    case "MESSAGING":
+      return "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400";
+
     default:
       return "bg-purple-100 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400";
   }
 }
 
 function getActorName(activity: ActivityLog) {
-  if (!activity.user) {
+  const actor = activity.initiatedBy || activity.user;
+
+  if (!actor) {
     return "Unknown account";
   }
 
   const name = [
-    activity.user.first_name,
-    activity.user.last_name,
+    actor.first_name,
+    actor.last_name,
   ]
     .filter(Boolean)
     .join(" ");
 
-  return name || activity.user.email || "Unknown account";
+  return name || actor.email || "Unknown account";
+}
+
+function isConversationSummary(activity: ActivityLog) {
+  return (
+    activity.action === "CONVERSATION_SUMMARY" &&
+    activity.module === "MESSAGING"
+  );
 }
 
 export default function RecentActivity() {
@@ -247,6 +292,16 @@ export default function RecentActivity() {
         <div className="space-y-6">
           {activities.map((activity) => {
             const Icon = getIcon(activity.module || "");
+            const conversationSummary =
+              isConversationSummary(activity);
+
+            const conversationType =
+              activity.conversation_type ||
+              activity.conversation?.type;
+
+            const conversationStatus =
+              activity.conversation_status ||
+              activity.conversation?.status;
 
             return (
               <div
@@ -262,7 +317,9 @@ export default function RecentActivity() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h4 className="font-medium text-zinc-900 dark:text-white">
-                      {formatAction(activity.action)}
+                      {conversationSummary
+                        ? "Conversation Activity"
+                        : formatAction(activity.action)}
                     </h4>
 
                     <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
@@ -274,8 +331,91 @@ export default function RecentActivity() {
                     {activity.description || "No description recorded."}
                   </p>
 
+                  {conversationSummary && (
+                    <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Conversation Type
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                            {conversationType
+                              ? formatAction(conversationType)
+                              : "Unknown"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Status
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                            {conversationStatus
+                              ? formatAction(conversationStatus)
+                              : "Unknown"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Total Messages
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                            {activity.message_count ?? 0}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Conversation ID
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                            #{activity.conversation_id ?? activity.conversation?.id ?? "—"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                        <div className="flex items-start gap-2">
+                          <Clock
+                            size={14}
+                            className="mt-0.5 shrink-0 text-zinc-400"
+                          />
+                          <div>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                              First Activity
+                            </p>
+                            <p className="text-xs text-zinc-700 dark:text-zinc-300">
+                              {formatTime(activity.first_activity_at)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2">
+                          <Clock
+                            size={14}
+                            className="mt-0.5 shrink-0 text-zinc-400"
+                          />
+                          <div>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                              Last Activity
+                            </p>
+                            <p className="text-xs text-zinc-700 dark:text-zinc-300">
+                              {formatTime(activity.last_activity_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="mt-2 text-xs text-zinc-400">
-                    {getActorName(activity)} · {formatTime(activity.created_at)}
+                    {getActorName(activity)} ·{" "}
+                    {formatTime(
+                      conversationSummary
+                        ? activity.last_activity_at || activity.created_at
+                        : activity.created_at
+                    )}
                   </p>
                 </div>
               </div>

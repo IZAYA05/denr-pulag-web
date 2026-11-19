@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   Bell,
   BadgeCheck,
   CalendarDays,
@@ -84,6 +85,11 @@ const navigation = [
         label: "Reports",
         href: "/admin/reports",
         icon: FileBarChart2,
+      },
+      {
+        label: "Activity Logs",
+        href: "/admin/activity-logs",
+        icon: Activity,
       },
       {
         label: "Users",

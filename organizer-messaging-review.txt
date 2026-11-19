@@ -1,0 +1,351 @@
+
+
+========== .\api\tests\Feature\OrganizerMessagingTest.php ==========
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Conversation;
+use App\Models\OrganizerPackage;
+use App\Models\PackageBooking;
+use App\Models\Trail;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class OrganizerMessagingTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $organizer;
+    private User $otherOrganizer;
+    private User $customer;
+    private PackageBooking $booking;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->organizer = $this->createUser('organizer@example.test', 'ORGANIZER');
+        $this->otherOrganizer = $this->createUser('other-organizer@example.test', 'ORGANIZER');
+        $this->customer = $this->createUser('customer@example.test', 'USER');
+
+        $trail = Trail::create([
+            'name' => 'Messaging Test Trail',
+            'description' => 'Trail for organizer messaging tests.',
+            'difficulty' => 'Moderate',
+            'max_capacity' => 500,
+            'is_active' => true,
+        ]);
+
+        $package = OrganizerPackage::create([
+            'organizer_id' => $this->organizer->id,
+            'name' => 'Messaging Test Package',
+            'description' => 'Package for organizer messaging tests.',
+            'price' => 1000,
+            'max_tourists' => 12,
+            'status' => 'ACTIVE',
+            'approval_status' => 'APPROVED',
+            'is_walk_in' => false,
+        ]);
+
+        $this->booking = PackageBooking::create([
+            'booking_number' => 'PB-2026-MSG-0001',
+            'package_id' => $package->id,
+            'customer_id' => $this->customer->id,
+            'trail_id' => $trail->id,
+            'hiking_date' => now('Asia/Manila')->addDays(40)->toDateString(),
+            'tourist_count' => 2,
+            'status' => 'PENDING',
+            'denr_status' => 'PENDING',
+        ]);
+    }
+
+    public function test_organizer_can_start_a_conversation_only_for_their_own_package_booking(): void
+    {
+        Sanctum::actingAs($this->organizer);
+
+        $response = $this->postJson('/api/conversations', [
+            'type' => 'PACKAGE_BOOKING',
+            'package_booking_id' => $this->booking->id,
+            'body' => 'Please confirm your group details before the hike.',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('conversation.type', 'PACKAGE_BOOKING')
+            ->assertJsonPath('conversation.user.id', $this->customer->id)
+            ->assertJsonPath('conversation.organizer.id', $this->organizer->id);
+
+        $this->assertDatabaseHas('conversations', [
+            'user_id' => $this->customer->id,
+            'organizer_id' => $this->organizer->id,
+            'package_booking_id' => $this->booking->id,
+            'type' => 'PACKAGE_BOOKING',
+        ]);
+    }
+
+    public function test_another_organizer_cannot_message_a_tourist_from_a_booking_they_do_not_own(): void
+    {
+        Sanctum::actingAs($this->otherOrganizer);
+
+        $this->postJson('/api/conversations', [
+            'type' => 'PACKAGE_BOOKING',
+            'package_booking_id' => $this->booking->id,
+            'body' => 'This should not be allowed.',
+        ])->assertNotFound();
+
+        $this->assertDatabaseCount('conversations', 0);
+    }
+
+    public function test_tourist_can_read_and_reply_to_the_booking_conversation(): void
+    {
+        $conversation = Conversation::create([
+            'user_id' => $this->customer->id,
+            'organizer_id' => $this->organizer->id,
+            'package_booking_id' => $this->booking->id,
+            'type' => 'PACKAGE_BOOKING',
+            'subject' => 'Package booking conversation',
+            'status' => 'OPEN',
+        ]);
+
+        Sanctum::actingAs($this->customer);
+        $this->getJson('/api/conversations/' . $conversation->id)
+            ->assertOk()
+            ->assertJsonPath('conversation.organizer.id', $this->organizer->id);
+
+        $this->postJson('/api/conversations/' . $conversation->id . '/messages', [
+            'body' => 'Thank you. We will be ready.',
+        ])->assertCreated();
+
+        Sanctum::actingAs($this->organizer);
+        $this->getJson('/api/conversations')
+            ->assertOk()
+            ->assertJsonPath('conversations.0.id', $conversation->id);
+    }
+
+    public function test_tourist_cannot_start_an_organizer_package_conversation_without_a_booking(): void
+    {
+        Sanctum::actingAs($this->customer);
+
+        $this->postJson('/api/conversations', [
+            'type' => 'PACKAGE_BOOKING',
+            'package_booking_id' => $this->booking->id,
+            'body' => 'A tourist cannot initiate this organizer workflow.',
+        ])->assertForbidden();
+    }
+
+    public function test_organizer_can_start_a_separate_denr_support_conversation(): void
+    {
+        Sanctum::actingAs($this->organizer);
+
+        $response = $this->postJson('/api/conversations', [
+            'type' => 'ORGANIZER_SUPPORT',
+            'subject' => 'Package approval question',
+            'body' => 'Could DENR clarify the review status of my package?',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('conversation.type', 'ORGANIZER_SUPPORT')
+            ->assertJsonPath('conversation.user.id', $this->organizer->id);
+
+        $this->assertDatabaseHas('conversations', [
+            'user_id' => $this->organizer->id,
+            'organizer_id' => null,
+            'package_booking_id' => null,
+            'type' => 'ORGANIZER_SUPPORT',
+        ]);
+    }
+
+    private function createUser(string $email, string $role): User
+    {
+        return User::create([
+            'first_name' => 'Test',
+            'last_name' => ucfirst(strtok($email, '@')),
+            'email' => $email,
+            'phone' => '09170000000',
+            'password' => bcrypt('test-password'),
+            'role' => $role,
+            'status' => 'ACTIVE',
+        ]);
+    }
+}
+
+
+
+========== .\api\database\migrations\2026_11_19_000001_add_organizer_booking_conversations.php ==========
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('conversations', function (Blueprint $table) {
+            $table->foreignId('organizer_id')->nullable()
+                ->after('user_id')
+                ->constrained('users')
+                ->cascadeOnDelete();
+
+            $table->foreignId('package_booking_id')->nullable()
+                ->after('organizer_id')
+                ->constrained('package_bookings')
+                ->cascadeOnDelete();
+
+            $table->unique('package_booking_id', 'conversations_package_booking_unique');
+            $table->index(['organizer_id', 'last_message_at'], 'conversations_organizer_last_message_index');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('conversations', function (Blueprint $table) {
+            $table->dropUnique('conversations_package_booking_unique');
+            $table->dropIndex('conversations_organizer_last_message_index');
+            $table->dropConstrainedForeignId('package_booking_id');
+            $table->dropConstrainedForeignId('organizer_id');
+        });
+    }
+};
+
+
+
+========== .\api\database\migrations\2026_11_19_000001_add_recipient_to_conversations_for_direct_chat.php ==========
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('conversations', function (Blueprint $table) {
+            $table->foreignId('recipient_id')->nullable()->after('user_id')
+                ->constrained('users')->nullOnDelete();
+            $table->index(['recipient_id', 'last_message_at']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('conversations', function (Blueprint $table) {
+            $table->dropIndex(['recipient_id', 'last_message_at']);
+            $table->dropConstrainedForeignId('recipient_id');
+        });
+    }
+};
+
+
+
+========== .\api\app\Models\Message.php ==========
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Message extends Model
+{
+    protected $fillable = [
+        'conversation_id',
+        'sender_id',
+        'body',
+    ];
+
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(Conversation::class);
+    }
+
+    public function sender(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(MessageAttachment::class);
+    }
+}
+
+
+
+========== .\api\app\Models\User.php ==========
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
+
+class User extends Authenticatable
+{
+    use HasApiTokens, HasFactory, Notifiable;
+
+    protected $fillable = [
+        'first_name',
+        'last_name',
+        'email',
+        'phone',
+        'password',
+        'role',
+        'status',
+        'image',
+        'terms_version',
+        'terms_accepted_at',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+            'terms_accepted_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * Get the direct DENR reservations made by the user.
+     */
+    public function reservations(): HasMany
+    {
+        return $this->hasMany(Reservation::class);
+    }
+
+    /**
+     * Get the Organizer packages owned by the user.
+     */
+    public function organizerPackages(): HasMany
+    {
+        return $this->hasMany(
+            OrganizerPackage::class,
+            'organizer_id'
+        );
+    }
+
+    /**
+     * Get the package bookings made by the user.
+     */
+    public function packageBookings(): HasMany
+    {
+        return $this->hasMany(
+            PackageBooking::class,
+            'customer_id'
+        );
+    }
+}

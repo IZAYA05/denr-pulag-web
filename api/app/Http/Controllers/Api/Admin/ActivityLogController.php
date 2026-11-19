@@ -25,6 +25,8 @@ class ActivityLogController extends Controller
 
         $query = ActivityLog::with([
             'user:id,first_name,last_name,email,role',
+            'initiatedBy:id,first_name,last_name,email,role',
+            'conversation:id,type,status,subject,user_id,organizer_id,recipient_id,package_booking_id',
         ]);
 
         // Employees can only see USER and ORGANIZER activities.
@@ -32,7 +34,6 @@ class ActivityLogController extends Controller
             $query->whereIn('role', ['USER', 'ORGANIZER']);
         }
 
-        // Optional filters.
         if ($request->filled('action')) {
             $query->where('action', strtoupper($request->action));
         }

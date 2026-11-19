@@ -1,0 +1,87 @@
+ api/.env.example                                   |   1 [32m+[m
+ api/Dockerfile                                     |  10 [32m+[m[31m-[m
+ api/Dockerfile.prod                                |   6 [32m+[m
+ .../Api/Admin/OrganizerPackageReviewController.php | 106 [32m+++[m
+ .../Controllers/Api/Admin/ReportController.php     |  63 [32m+[m[31m-[m
+ .../Controllers/Api/AnnouncementController.php     | 142 [32m++++[m
+ .../Http/Controllers/Api/BlockedDateController.php |  94 [32m+++[m
+ .../Controllers/Api/ConversationController.php     | 731 [32m+++++++++++++++++[m
+ .../Api/MessageAttachmentController.php            |  46 [32m++[m
+ .../Controllers/Api/OrganizerPackageController.php |  12 [32m+[m
+ .../Controllers/Api/PackageBookingController.php   |  12 [32m+[m
+ .../Controllers/Api/PackageCatalogController.php   |   1 [32m+[m
+ api/app/Http/Middleware/BookingCreationPolicy.php  |  21 [32m+[m
+ api/app/Http/Middleware/EnsureAccountIsActive.php  |  39 [32m+[m
+ api/app/Models/Announcement.php                    |  35 [32m+[m
+ api/app/Models/BlockedDate.php                     |  27 [32m+[m
+ api/app/Models/Conversation.php                    |  64 [32m++[m
+ api/app/Models/Message.php                         |  31 [32m+[m
+ api/app/Models/MessageAttachment.php               |  34 [32m+[m
+ api/app/Models/OrganizerApplication.php            |  42 [32m+[m
+ api/app/Models/OrganizerPackage.php                |  10 [32m+[m
+ api/app/Services/BookingCapacityService.php        |  71 [32m+[m[31m-[m
+ api/bootstrap/app.php                              |   1 [32m+[m
+ api/config/app.php                                 |   2 [32m+[m[31m-[m
+ ..._11_12_000001_add_package_approval_workflow.php |  39 [32m+[m
+ ...026_11_12_000002_create_blocked_dates_table.php |  25 [32m+[m
+ ..._000003_create_booking_capacity_locks_table.php |  28 [32m+[m
+ ...026_11_12_000004_create_conversations_table.php |  33 [32m+[m
+ ...0005_create_messages_and_attachments_tables.php |  39 [32m+[m
+ ..._000006_create_organizer_applications_table.php |  31 [32m+[m
+ ..._official_reservation_link_to_conversations.php |  25 [32m+[m
+ ...026_11_12_000008_create_announcements_table.php |  28 [32m+[m
+ api/phpunit.xml                                    |   9 [32m+[m[31m-[m
+ api/routes/api.php                                 |  46 [32m+[m[31m-[m
+ api/tests/Feature/BookingCapacityTest.php          | 260 [32m++++++[m
+ compose.yaml                                       |   1 [32m+[m
+ .../(Admin Dashboard)/admin/announcements/page.tsx |  36 [32m+[m[31m-[m
+ web/app/(Admin Dashboard)/admin/calendar/page.tsx  |   3 [32m+[m
+ web/app/(Admin Dashboard)/admin/chatbox/page.tsx   |   5 [32m+[m
+ .../admin/package-approvals/page.tsx               |   5 [32m+[m
+ web/app/(Admin Dashboard)/admin/settings/page.tsx  |  21 [32m+[m[31m-[m
+ .../(Employee Dashboard)/employee/chatbox/page.tsx |   5 [32m+[m
+ .../(Employee Dashboard)/employee/trails/page.tsx  |   8 [32m+[m[31m-[m
+ .../organizer/verification/page.tsx                |   7 [32m+[m
+ web/app/(User Dashboard)/user/chatbox/page.tsx     |   5 [32m+[m
+ web/app/messages/popup/page.tsx                    |  33 [32m+[m
+ web/components/admin/OrganizerPackageApprovals.tsx | 339 [32m++++++++[m
+ web/components/admin/Sidebar.tsx                   |  12 [32m+[m
+ web/components/admin/Topbar.tsx                    |  31 [32m+[m[31m-[m
+ .../admin/announcements/AnnouncementManagement.tsx | 260 [32m++++++[m
+ .../admin/calendar/BlockedDateManager.tsx          | 251 [32m++++++[m
+ web/components/admin/calendar/BookingCalendar.tsx  |  50 [32m+[m[31m-[m
+ web/components/admin/settings/BookingSettings.tsx  |   8 [32m+[m[31m-[m
+ web/components/admin/settings/TrailSettings.tsx    |  37 [32m+[m[31m-[m
+ web/components/employee/EmployeeProfile.tsx        | 177 [32m++++[m
+ web/components/employee/EmployeeSidebar.tsx        |   7 [32m+[m[31m-[m
+ web/components/employee/EmployeeTopbar.tsx         |   5 [32m+[m
+ web/components/landing/Hero.tsx                    |   9 [32m+[m[31m-[m
+ .../landing/PublicAvailabilityCalendar.tsx         | 206 [32m+++++[m
+ web/components/landing/Trails.tsx                  |   6 [32m+[m[31m-[m
+ web/components/organizer/BookingDetailsModal.tsx   |  34 [32m+[m[31m-[m
+ .../organizer/OrganizerDashboardStats.tsx          | 128 [32m+[m[31m--[m
+ web/components/organizer/OrganizerMyPackages.tsx   |  99 [32m++[m[31m-[m
+ .../organizer/OrganizerUpcomingTrips.tsx           | 130 [32m++[m[31m-[m
+ web/components/organizer/Topbar.tsx                |  32 [32m+[m[31m-[m
+ .../organizer/bookings/BookingContext.tsx          |  38 [32m+[m[31m-[m
+ .../organizer/bookings/BookingFilters.tsx          |   1 [32m+[m
+ web/components/organizer/bookings/BookingTable.tsx |   1 [32m+[m
+ web/components/organizer/packages/PackageCard.tsx  |  37 [32m+[m[31m-[m
+ .../organizer/packages/PackageContext.tsx          |  26 [32m+[m[31m-[m
+ web/components/organizer/packages/PackageStats.tsx |  13 [32m+[m[31m-[m
+ .../organizer/packages/PackageViewModal.tsx        |  29 [32m+[m
+ .../shared/chatbox/AttachmentPreview.tsx           | 121 [32m+++[m
+ web/components/shared/chatbox/Chatbox.tsx          | 896 [32m+++++++++++++++++++++[m
+ .../shared/chatbox/StaffReservationCreator.tsx     | 224 [32m++++++[m
+ .../shared/messages/MessagesLauncher.tsx           | 102 [32m+++[m
+ web/components/shared/profile/ProfileSettings.tsx  |  12 [32m+[m[31m-[m
+ web/components/user/UserRecentAnnouncements.tsx    |  93 [32m+[m[31m--[m
+ web/components/user/UserSidebar.tsx                |   7 [32m+[m[31m-[m
+ web/components/user/UserTopbar.tsx                 |   6 [32m+[m[31m-[m
+ .../user/announcements/AnnouncementsHero.tsx       |  55 [32m+[m[31m-[m
+ .../user/announcements/AnnouncementsSection.tsx    | 107 [32m++[m[31m-[m
+ web/components/user/packages/BookPackage.tsx       |  10 [32m+[m
+ web/components/user/packages/HikingDatePicker.tsx  | 337 [32m++++++[m[31m--[m
+ .../user/reservations/UserReservations.tsx         | 382 [32m+++++++[m[31m--[m
+ web/lib/logout.ts                                  |  20 [32m+[m
+ 86 files changed, 6070 insertions(+), 561 deletions(-)

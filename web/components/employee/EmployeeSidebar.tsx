@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   ChartNoAxesCombined,
   ChevronLeft,
   ChevronRight,
@@ -61,6 +62,11 @@ const navigation = [
         label: "Daily Reports",
         href: "/employee/reports",
         icon: ChartNoAxesCombined,
+      },
+      {
+        label: "Activity Logs",
+        href: "/employee/activity-logs",
+        icon: Activity,
       },
       {
         label: "Trail Schedules",
@@ -133,6 +139,7 @@ export default function EmployeeSidebar({
                 <h1 className="truncate text-xl font-bold tracking-tight text-zinc-900 dark:text-white">
                   E-PULAG
                 </h1>
+
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
                   Reservation System
                 </p>

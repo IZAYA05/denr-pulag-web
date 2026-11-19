@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-
+use App\Services\ConversationActivityLogger;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -34,6 +34,17 @@ class Conversation extends Model
             'last_message_at' => 'datetime',
             'reservation_created_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function (Conversation $conversation) {
+            app(ConversationActivityLogger::class)->sync($conversation);
+        });
+
+        static::updated(function (Conversation $conversation) {
+            app(ConversationActivityLogger::class)->sync($conversation);
+        });
     }
 
     public function user(): BelongsTo
