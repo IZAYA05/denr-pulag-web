@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\OrganizerApplication;
+use App\Models\PackageBooking;
 use App\Models\Reservation;
 use App\Models\Trail;
 use App\Models\User;
@@ -28,9 +29,13 @@ class ConversationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+
         $query = Conversation::query()
             ->with([
                 'user:id,first_name,last_name,email,phone,role',
+                'organizer:id,first_name,last_name,email,role',
+                'packageBooking',
+                'recipient:id,first_name,last_name,email,role',
                 'requestedTrail:id,name',
                 'createdReservation:id,reservation_number,hiking_date,status',
                 'organizerApplication:id,conversation_id,status,dot_accreditation_number,business_permit_number,review_notes',
@@ -41,7 +46,11 @@ class ConversationController extends Controller
             ->orderByDesc('updated_at');
 
         if (!in_array(strtoupper((string) $user->role), ['ADMIN', 'EMPLOYEE'], true)) {
-            $query->where('user_id', $user->id);
+            $query->where(function ($participantQuery) use ($user) {
+                $participantQuery->where('user_id', $user->id)
+                    ->orWhere('organizer_id', $user->id)
+                    ->orWhere('recipient_id', $user->id);
+            });
         }
 
         if ($request->filled('type')) {
@@ -57,19 +66,150 @@ class ConversationController extends Controller
         ]);
     }
 
+    /** Return only opposite-role contacts for unrestricted USER <-> ORGANIZER messaging. */
+    public function contacts(Request $request): JsonResponse
+    {
+        $role = strtoupper((string) $request->user()->role);
+
+        if (!in_array($role, ['USER', 'ORGANIZER'], true)) {
+            return response()->json(['contacts' => []]);
+        }
+
+        $targetRole = $role === 'USER' ? 'ORGANIZER' : 'USER';
+
+        $contacts = User::query()
+            ->where('role', $targetRole)
+            ->where('status', 'ACTIVE')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get(['id', 'first_name', 'last_name', 'email', 'role']);
+
+        return response()->json(['contacts' => $contacts]);
+    }
+
+    /** Start a direct USER <-> ORGANIZER conversation. No booking is required. */
+    public function startDirect(Request $request): JsonResponse
+    {
+        $sender = $request->user();
+        $role = strtoupper((string) $sender->role);
+
+        if (!in_array($role, ['USER', 'ORGANIZER'], true)) {
+            return response()->json([
+                'message' => 'Only Tourist and Organizer accounts can start direct chats.',
+            ], 403);
+        }
+
+        $validated = $request->validate([
+            'recipient_id' => ['required', 'integer', 'exists:users,id'],
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $targetRole = $role === 'USER' ? 'ORGANIZER' : 'USER';
+
+        $recipient = User::query()
+            ->whereKey($validated['recipient_id'])
+            ->where('role', $targetRole)
+            ->where('status', 'ACTIVE')
+            ->first();
+
+        if (!$recipient) {
+            return response()->json([
+                'message' => 'You can only message an active account of the opposite role.',
+            ], 422);
+        }
+
+        $conversation = DB::transaction(function () use ($sender, $recipient, $validated) {
+            $conversation = Conversation::query()
+                ->where('type', 'DIRECT_MESSAGE')
+                ->where(function ($q) use ($sender, $recipient) {
+                    $q->where(function ($pair) use ($sender, $recipient) {
+                        $pair->where('user_id', $sender->id)
+                            ->where('recipient_id', $recipient->id);
+                    })->orWhere(function ($pair) use ($sender, $recipient) {
+                        $pair->where('user_id', $recipient->id)
+                            ->where('recipient_id', $sender->id);
+                    });
+                })
+                ->lockForUpdate()
+                ->first();
+
+            if (!$conversation) {
+                $conversation = Conversation::create([
+                    'user_id' => $sender->id,
+                    'recipient_id' => $recipient->id,
+                    'type' => 'DIRECT_MESSAGE',
+                    'subject' => 'Direct message',
+                    'status' => 'OPEN',
+                    'last_message_at' => now('Asia/Manila'),
+                ]);
+            }
+
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $sender->id,
+                'body' => trim($validated['body']),
+            ]);
+
+            $conversation->update([
+                'last_message_at' => now('Asia/Manila'),
+                'status' => 'OPEN',
+            ]);
+
+            return $conversation;
+        });
+
+        $recipient->notify(new SystemNotification(
+            'New Chatbox Message',
+            "{$sender->first_name} {$sender->last_name} sent you a message.",
+            'conversation',
+            null,
+            ['conversation_id' => $conversation->id]
+        ));
+
+        return response()->json([
+            'message' => 'Conversation started.',
+            'conversation' => $conversation->fresh([
+                'user:id,first_name,last_name,email,role',
+                'recipient:id,first_name,last_name,email,role',
+            ]),
+        ], 201);
+    }
+
     /**
-     * A logged-in USER can start either a reservation coordination request
-     * or an organizer role application. This never creates a reservation.
+     * USER accounts can start reservation coordination or organizer applications.
+     * ORGANIZER accounts can start package-booking conversations or DENR support.
      */
     public function store(Request $request): JsonResponse
     {
-        if (strtoupper((string) $request->user()->role) !== 'USER') {
+        $sender = $request->user();
+        $role = strtoupper((string) $sender->role);
+        $type = strtoupper((string) $request->input('type'));
+
+        if ($type === 'PACKAGE_BOOKING') {
+            if ($role !== 'ORGANIZER') {
+                return response()->json([
+                    'message' => 'Only organizer accounts can start package-booking conversations.',
+                ], 403);
+            }
+
+            return $this->createPackageBookingConversation($request);
+        }
+
+        if ($type === 'ORGANIZER_SUPPORT') {
+            if ($role !== 'ORGANIZER') {
+                return response()->json([
+                    'message' => 'Only organizer accounts can start DENR support conversations.',
+                ], 403);
+            }
+
+            return $this->createOrganizerSupportConversation($request);
+        }
+
+        if ($role !== 'USER') {
             return response()->json([
                 'message' => 'Only visitor accounts can start these requests.',
             ], 403);
         }
-
-        $type = strtoupper((string) $request->input('type'));
 
         if ($type === 'ORGANIZER_APPLICATION') {
             return $this->createOrganizerApplication($request);
@@ -84,14 +224,177 @@ class ConversationController extends Controller
         ]);
     }
 
+    /**
+     * Create or continue a conversation between the package organizer and customer.
+     * An organizer may only access bookings belonging to their own package.
+     */
+    private function createPackageBookingConversation(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'package_booking_id' => [
+                'required',
+                'integer',
+                'exists:package_bookings,id',
+            ],
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $organizer = $request->user();
+
+        $result = DB::transaction(function () use ($organizer, $validated) {
+            $booking = PackageBooking::query()
+                ->whereKey($validated['package_booking_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if (!$booking) {
+                abort(404, 'Package booking not found.');
+            }
+
+            $booking->load(['package', 'customer']);
+
+            $package = $booking->package;
+
+            if (!$package || (int) $package->organizer_id !== (int) $organizer->id) {
+                abort(404, 'Package booking not found.');
+            }
+
+            $customer = $booking->customer;
+
+            if (!$customer) {
+                abort(404, 'Package booking customer not found.');
+            }
+
+            $conversation = Conversation::query()
+                ->where('package_booking_id', $booking->id)
+                ->lockForUpdate()
+                ->first();
+
+            $created = false;
+
+            if (!$conversation) {
+                $bookingReference = $booking->booking_number
+                    ? " {$booking->booking_number}"
+                    : " #{$booking->id}";
+
+                $conversation = Conversation::create([
+                    'user_id' => $customer->id,
+                    'organizer_id' => $organizer->id,
+                    'package_booking_id' => $booking->id,
+                    'type' => 'PACKAGE_BOOKING',
+                    'subject' => 'Package Booking' . $bookingReference,
+                    'status' => 'OPEN',
+                    'last_message_at' => now('Asia/Manila'),
+                ]);
+
+                $created = true;
+            } elseif (
+                (int) $conversation->organizer_id !== (int) $organizer->id
+                || (int) $conversation->user_id !== (int) $customer->id
+            ) {
+                abort(404, 'Package booking conversation not found.');
+            }
+
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $organizer->id,
+                'body' => trim($validated['body']),
+            ]);
+
+            $conversation->update([
+                'last_message_at' => now('Asia/Manila'),
+                'status' => 'OPEN',
+            ]);
+
+            return [
+                'conversation' => $conversation,
+                'customer' => $customer,
+                'created' => $created,
+            ];
+        });
+
+        $conversation = $result['conversation'];
+        $customer = $result['customer'];
+
+        $customer->notify(new SystemNotification(
+            'New Package Booking Message',
+            "{$organizer->first_name} {$organizer->last_name} sent you a message about your package booking.",
+            'conversation',
+            null,
+            ['conversation_id' => $conversation->id]
+        ));
+
+        return response()->json([
+            'message' => $result['created']
+                ? 'Package booking conversation started.'
+                : 'Message sent successfully.',
+            'conversation' => $conversation->fresh([
+                'user:id,first_name,last_name,email,phone,role',
+                'organizer:id,first_name,last_name,email,role',
+                'packageBooking',
+                'messages.sender:id,first_name,last_name,role',
+            ]),
+        ], $result['created'] ? 201 : 200);
+    }
+
+    /**
+     * Create a separate support conversation between an organizer and DENR staff.
+     */
+    private function createOrganizerSupportConversation(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'subject' => ['nullable', 'string', 'max:255'],
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $organizer = $request->user();
+
+        $conversation = DB::transaction(function () use ($organizer, $validated) {
+            $conversation = Conversation::create([
+                'user_id' => $organizer->id,
+                'type' => 'ORGANIZER_SUPPORT',
+                'subject' => trim($validated['subject'] ?? '') ?: 'DENR Support',
+                'status' => 'OPEN',
+                'last_message_at' => now('Asia/Manila'),
+            ]);
+
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $organizer->id,
+                'body' => trim($validated['body']),
+            ]);
+
+            return $conversation;
+        });
+
+        $this->notifyActiveStaff(
+            'New Organizer Support Request',
+            "{$organizer->first_name} {$organizer->last_name} sent a new DENR support message.",
+            ['conversation_id' => $conversation->id]
+        );
+
+        return response()->json([
+            'message' => 'DENR support conversation started.',
+            'conversation' => $conversation->fresh([
+                'user:id,first_name,last_name,email,role',
+                'messages.sender:id,first_name,last_name,role',
+            ]),
+        ], 201);
+    }
+
     public function show(Request $request, Conversation $conversation): JsonResponse
     {
         if (!$this->canAccess($request, $conversation)) {
-            return response()->json(['message' => 'Conversation not found.'], 404);
+            return response()->json([
+                'message' => 'Conversation not found.',
+            ], 404);
         }
 
         $conversation->load([
             'user:id,first_name,last_name,email,phone,role',
+            'organizer:id,first_name,last_name,email,role',
+            'packageBooking',
+            'recipient:id,first_name,last_name,email,role',
             'requestedTrail:id,name',
             'createdReservation:id,reservation_number,hiking_date,status',
             'organizerApplication.reviewer:id,first_name,last_name',
@@ -99,13 +402,17 @@ class ConversationController extends Controller
             'messages.attachments:id,message_id,document_type,original_name,mime_type,file_size',
         ]);
 
-        return response()->json(['conversation' => $conversation]);
+        return response()->json([
+            'conversation' => $conversation,
+        ]);
     }
 
     public function sendMessage(Request $request, Conversation $conversation): JsonResponse
     {
         if (!$this->canAccess($request, $conversation)) {
-            return response()->json(['message' => 'Conversation not found.'], 404);
+            return response()->json([
+                'message' => 'Conversation not found.',
+            ], 404);
         }
 
         if ($conversation->status === 'CLOSED') {
@@ -115,13 +422,29 @@ class ConversationController extends Controller
         }
 
         $validated = $request->validate([
-            'body' => ['nullable', 'string', 'max:5000', 'required_without_all:dot_certificate,business_permit'],
-            'dot_certificate' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:3072'],
-            'business_permit' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:3072'],
+            'body' => [
+                'nullable',
+                'string',
+                'max:5000',
+                'required_without_all:dot_certificate,business_permit',
+            ],
+            'dot_certificate' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:3072',
+            ],
+            'business_permit' => [
+                'nullable',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:3072',
+            ],
         ]);
 
         if ($conversation->type !== 'ORGANIZER_APPLICATION' && (
-            $request->hasFile('dot_certificate') || $request->hasFile('business_permit')
+            $request->hasFile('dot_certificate')
+            || $request->hasFile('business_permit')
         )) {
             return response()->json([
                 'message' => 'Document attachments are only accepted for organizer applications.',
@@ -132,7 +455,9 @@ class ConversationController extends Controller
             $message = Message::create([
                 'conversation_id' => $conversation->id,
                 'sender_id' => $request->user()->id,
-                'body' => isset($validated['body']) ? trim($validated['body']) : null,
+                'body' => isset($validated['body'])
+                    ? trim($validated['body'])
+                    : null,
             ]);
 
             $this->storeApplicationAttachments($message, $request);
@@ -145,7 +470,10 @@ class ConversationController extends Controller
             return $message;
         });
 
-        $this->notifyConversationParticipants($conversation->fresh('user'), $request->user());
+        $this->notifyConversationParticipants(
+            $conversation->fresh(['user', 'organizer', 'recipient']),
+            $request->user()
+        );
 
         return response()->json([
             'message' => 'Message sent successfully.',
@@ -158,15 +486,23 @@ class ConversationController extends Controller
 
     public function resubmitOrganizerApplication(Request $request, Conversation $conversation): JsonResponse
     {
-        if (!$this->canAccess($request, $conversation) || $conversation->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Conversation not found.'], 404);
+        if (
+            !$this->canAccess($request, $conversation)
+            || (int) $conversation->user_id !== (int) $request->user()->id
+        ) {
+            return response()->json([
+                'message' => 'Conversation not found.',
+            ], 404);
         }
 
         if ($conversation->type !== 'ORGANIZER_APPLICATION') {
-            return response()->json(['message' => 'This is not an organizer application.'], 422);
+            return response()->json([
+                'message' => 'This is not an organizer application.',
+            ], 422);
         }
 
         $application = $conversation->organizerApplication;
+
         if (!$application || $application->status !== 'NEEDS_REVISION') {
             return response()->json([
                 'message' => 'This application is not awaiting revised documents.',
@@ -227,15 +563,23 @@ class ConversationController extends Controller
         ActivityLogger $logger
     ): JsonResponse {
         if ($conversation->type !== 'ORGANIZER_APPLICATION') {
-            return response()->json(['message' => 'This is not an organizer application.'], 422);
+            return response()->json([
+                'message' => 'This is not an organizer application.',
+            ], 422);
         }
 
         $validated = $request->validate([
             'decision' => ['required', 'string', 'in:APPROVED,REJECTED,NEEDS_REVISION'],
-            'review_notes' => ['nullable', 'string', 'max:2000', 'required_if:decision,REJECTED,NEEDS_REVISION'],
+            'review_notes' => [
+                'nullable',
+                'string',
+                'max:2000',
+                'required_if:decision,REJECTED,NEEDS_REVISION',
+            ],
         ]);
 
         $application = $conversation->organizerApplication;
+
         if (!$application || $application->status !== 'PENDING') {
             return response()->json([
                 'message' => 'Only pending organizer applications can be reviewed.',
@@ -263,9 +607,12 @@ class ConversationController extends Controller
             ]);
 
             if ($decision === 'APPROVED') {
-                User::query()->whereKey($lockedApplication->user_id)->update([
-                    'role' => 'ORGANIZER',
-                ]);
+                User::query()
+                    ->whereKey($lockedApplication->user_id)
+                    ->update([
+                        'role' => 'ORGANIZER',
+                    ]);
+
                 $conversation->update(['status' => 'CLOSED']);
             } elseif ($decision === 'REJECTED') {
                 // Rejected applicants remain USER accounts and may start a new application later.
@@ -322,8 +669,8 @@ class ConversationController extends Controller
     }
 
     /**
-     * Staff-only final step for reservation coordination. The conversation itself
-     * never creates a booking; staff explicitly records the confirmed booking here.
+     * Staff-only final step for reservation coordination.
+     * The conversation itself never creates a reservation.
      */
     public function createOfficialReservation(
         Request $request,
@@ -332,7 +679,9 @@ class ConversationController extends Controller
         ActivityLogger $logger
     ): JsonResponse {
         if ($conversation->type !== 'RESERVATION_REQUEST') {
-            return response()->json(['message' => 'This conversation is not a reservation coordination request.'], 422);
+            return response()->json([
+                'message' => 'This conversation is not a reservation coordination request.',
+            ], 422);
         }
 
         if ($conversation->created_reservation_id) {
@@ -343,7 +692,9 @@ class ConversationController extends Controller
         }
 
         if ($conversation->status === 'CLOSED') {
-            return response()->json(['message' => 'This conversation is closed.'], 422);
+            return response()->json([
+                'message' => 'This conversation is closed.',
+            ], 422);
         }
 
         $validated = $request->validate([
@@ -362,20 +713,31 @@ class ConversationController extends Controller
         ]);
 
         $customer = $conversation->user;
+
         if (!$customer || strtoupper((string) $customer->status) !== 'ACTIVE') {
-            return response()->json(['message' => 'The visitor account is not active.'], 422);
+            return response()->json([
+                'message' => 'The visitor account is not active.',
+            ], 422);
         }
 
         $trail = Trail::query()
             ->whereKey($conversation->requested_trail_id)
             ->where('is_active', true)
             ->first();
+
         if (!$trail) {
-            return response()->json(['message' => 'The requested trail is no longer available.'], 422);
+            return response()->json([
+                'message' => 'The requested trail is no longer available.',
+            ], 422);
         }
 
-        $hikingDate = Carbon::parse($conversation->requested_hiking_date, 'Asia/Manila')->startOfDay();
+        $hikingDate = Carbon::parse(
+            $conversation->requested_hiking_date,
+            'Asia/Manila'
+        )->startOfDay();
+
         $minimumDate = Carbon::today('Asia/Manila')->addDays(30);
+
         if ($hikingDate->lt($minimumDate)) {
             return response()->json([
                 'message' => 'The requested hiking date must be at least 30 days from today.',
@@ -386,6 +748,7 @@ class ConversationController extends Controller
         $blockedDate = BlockedDate::query()
             ->whereDate('date', $hikingDate->toDateString())
             ->first();
+
         if ($blockedDate) {
             return response()->json([
                 'message' => 'The requested hiking date is unavailable.',
@@ -394,6 +757,7 @@ class ConversationController extends Controller
         }
 
         $participantCount = count($validated['participants']);
+
         if ($participantCount !== (int) $conversation->requested_visitors) {
             return response()->json([
                 'message' => 'The participant list must match the group size recorded in the coordination request.',
@@ -424,7 +788,10 @@ class ConversationController extends Controller
             $capacityService->lockForCapacityCheck();
             $summary = $capacityService->getSummary($hikingDate->toDateString());
 
-            if ($summary['is_blocked'] || $summary['current_capacity'] + $participantCount > BookingCapacityService::MAXIMUM_CAPACITY) {
+            if (
+                $summary['is_blocked']
+                || $summary['current_capacity'] + $participantCount > BookingCapacityService::MAXIMUM_CAPACITY
+            ) {
                 return [
                     'capacity_error' => true,
                     'summary' => $summary,
@@ -432,6 +799,7 @@ class ConversationController extends Controller
             }
 
             $reservationNumber = 'EP-' . strtoupper(Str::random(8));
+
             while (Reservation::query()->where('reservation_number', $reservationNumber)->exists()) {
                 $reservationNumber = 'EP-' . strtoupper(Str::random(8));
             }
@@ -444,7 +812,8 @@ class ConversationController extends Controller
                 'total_participants' => $participantCount,
                 // Staff explicitly creates this record after confirming the slot.
                 'status' => 'APPROVED',
-                'remarks' => $validated['remarks'] ?? 'Recorded by DENR staff after reservation coordination.',
+                'remarks' => $validated['remarks']
+                    ?? 'Recorded by DENR staff after reservation coordination.',
                 'user_id' => $customer->id,
                 'trail_id' => $trail->id,
             ]);
@@ -468,11 +837,14 @@ class ConversationController extends Controller
         });
 
         if (!empty($result['conflict'])) {
-            return response()->json(['message' => 'An official reservation has already been created for this conversation.'], 409);
+            return response()->json([
+                'message' => 'An official reservation has already been created for this conversation.',
+            ], 409);
         }
 
         if (!empty($result['capacity_error'])) {
             $summary = $result['summary'];
+
             return response()->json([
                 'message' => $summary['is_blocked']
                     ? 'The requested hiking date is unavailable.'
@@ -486,7 +858,12 @@ class ConversationController extends Controller
             ], 422);
         }
 
-        $reservation = $result['reservation']->load(['trail', 'participants', 'user']);
+        $reservation = $result['reservation']->load([
+            'trail',
+            'participants',
+            'user',
+        ]);
+
         $customer->notify(new SystemNotification(
             'Reservation Recorded by DENR',
             "Your reservation {$reservation->reservation_number} has been recorded and approved by DENR staff.",
@@ -547,7 +924,7 @@ class ConversationController extends Controller
                 'last_message_at' => now('Asia/Manila'),
             ]);
 
-            $application = OrganizerApplication::create([
+            OrganizerApplication::create([
                 'conversation_id' => $conversation->id,
                 'user_id' => $request->user()->id,
                 'dot_accreditation_number' => trim($validated['dot_accreditation_number']),
@@ -567,6 +944,7 @@ class ConversationController extends Controller
         });
 
         $user = $request->user();
+
         $this->notifyActiveStaff(
             'New Organizer Application',
             "{$user->first_name} {$user->last_name} submitted DOT accreditation and business permit documents for organizer review.",
@@ -605,7 +983,9 @@ class ConversationController extends Controller
             ->first();
 
         if (!$trail) {
-            return response()->json(['message' => 'Select an active trail.'], 422);
+            return response()->json([
+                'message' => 'Select an active trail.',
+            ], 422);
         }
 
         $conversation = DB::transaction(function () use ($request, $validated) {
@@ -630,6 +1010,7 @@ class ConversationController extends Controller
         });
 
         $user = $request->user();
+
         $this->notifyActiveStaff(
             'New Reservation Coordination Request',
             "{$user->first_name} {$user->last_name} requested reservation-slot coordination for {$validated['requested_hiking_date']} on {$trail->name}.",
@@ -661,6 +1042,7 @@ class ConversationController extends Controller
             }
 
             $file = $request->file($field);
+
             if (!$file || !$file->isValid()) {
                 throw ValidationException::withMessages([
                     $field => ['The uploaded file could not be read. Please upload it again.'],
@@ -686,10 +1068,13 @@ class ConversationController extends Controller
 
     private function canAccess(Request $request, Conversation $conversation): bool
     {
-        $role = strtoupper((string) $request->user()->role);
+        $user = $request->user();
+        $role = strtoupper((string) $user->role);
 
         return in_array($role, ['ADMIN', 'EMPLOYEE'], true)
-            || (int) $conversation->user_id === (int) $request->user()->id;
+            || (int) $conversation->user_id === (int) $user->id
+            || (int) $conversation->organizer_id === (int) $user->id
+            || (int) $conversation->recipient_id === (int) $user->id;
     }
 
     private function notifyActiveStaff(string $title, string $message, array $data): void
@@ -709,8 +1094,26 @@ class ConversationController extends Controller
             });
     }
 
-    private function notifyConversationParticipants(Conversation $conversation, User $sender): void
-    {
+    private function notifyConversationParticipants(
+        Conversation $conversation,
+        User $sender
+    ): void {
+        if ($conversation->type === 'DIRECT_MESSAGE') {
+            $recipientId = (int) $conversation->user_id === (int) $sender->id
+                ? $conversation->recipient_id
+                : $conversation->user_id;
+
+            User::query()->find($recipientId)?->notify(new SystemNotification(
+                'New Chatbox Message',
+                "{$sender->first_name} {$sender->last_name} sent you a message.",
+                'conversation',
+                null,
+                ['conversation_id' => $conversation->id]
+            ));
+
+            return;
+        }
+
         if (in_array(strtoupper((string) $sender->role), ['ADMIN', 'EMPLOYEE'], true)) {
             $conversation->user?->notify(new SystemNotification(
                 'New DENR Message',
@@ -719,7 +1122,34 @@ class ConversationController extends Controller
                 null,
                 ['conversation_id' => $conversation->id]
             ));
+
             return;
+        }
+
+        if ($conversation->type === 'PACKAGE_BOOKING') {
+            if ((int) $sender->id === (int) $conversation->organizer_id) {
+                $conversation->user?->notify(new SystemNotification(
+                    'New Package Booking Message',
+                    'The package organizer sent you a message about your booking.',
+                    'conversation',
+                    null,
+                    ['conversation_id' => $conversation->id]
+                ));
+
+                return;
+            }
+
+            if ((int) $sender->id === (int) $conversation->user_id) {
+                $conversation->organizer?->notify(new SystemNotification(
+                    'New Package Booking Message',
+                    'A customer replied to your package-booking conversation.',
+                    'conversation',
+                    null,
+                    ['conversation_id' => $conversation->id]
+                ));
+
+                return;
+            }
         }
 
         $this->notifyActiveStaff(

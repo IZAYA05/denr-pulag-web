@@ -222,8 +222,17 @@ export default function WalkInPackageManager() {
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
               Walk-in Package
             </h1>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Manage the shared package used for visitors who book in person.
+            </p>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+        Only one Walk-in Package is allowed. Admin and Employee accounts edit
+        the same package. It is not displayed in the public online package
+        catalog.
       </div>
 
       {error && (

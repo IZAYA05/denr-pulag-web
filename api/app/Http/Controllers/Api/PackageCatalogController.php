@@ -11,9 +11,11 @@ class PackageCatalogController extends Controller
     public function index(): JsonResponse
     {
         $packages = OrganizerPackage::with('services')
-            ->where('is_walk_in', false)
             ->where('status', 'ACTIVE')
-            ->where('approval_status', 'APPROVED')
+            ->where(function ($query) {
+                $query->where('is_walk_in', true)
+                    ->orWhere('approval_status', 'APPROVED');
+            })
             ->latest()
             ->get();
 

@@ -52,6 +52,8 @@ export interface ApiPackageBooking {
   status: ApiBookingStatus;
   denr_status?: string | null;
   remarks: string | null;
+  customer?: { id: number; first_name: string; last_name: string; email?: string; phone?: string } | null;
+  tourists?: Array<{ id: number; full_name: string; age: number; gender: string; nationality: string; contact_number?: string | null; address?: string | null }>;
   package: ApiPackage;
   trail: ApiTrail;
 }
@@ -215,6 +217,17 @@ export default function BookingDetailsModal({
 
             <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
               <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Booking Customer
+              </p>
+              <p className="mt-2 font-semibold text-zinc-900 dark:text-white">
+                {[booking.customer?.first_name, booking.customer?.last_name].filter(Boolean).join(" ") || "Customer details unavailable"}
+              </p>
+              {booking.customer?.email && <p className="mt-1 break-all text-xs text-zinc-500">{booking.customer.email}</p>}
+              {booking.customer?.phone && <p className="mt-1 text-xs text-zinc-500">{booking.customer.phone}</p>}
+            </div>
+
+            <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                 Booking Status
               </p>
 
@@ -225,6 +238,26 @@ export default function BookingDetailsModal({
                   {bookingStatus}
                 </Badge>
               </div>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
+              Tourist Participants
+            </h3>
+            <div className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+              {booking.tourists && booking.tourists.length > 0 ? booking.tourists.map((tourist, index) => (
+                <div key={tourist.id} className="grid gap-1 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-900 dark:text-white">{index + 1}. {tourist.full_name}</p>
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tourist.age} years · {tourist.gender} · {tourist.nationality}</p>
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400 sm:text-right">
+                    {tourist.contact_number || "No contact number"}
+                    {tourist.address && <p className="mt-1 max-w-xs">{tourist.address}</p>}
+                  </div>
+                </div>
+              )) : <p className="px-4 py-4 text-sm text-zinc-500 dark:text-zinc-400">Participant details are not available for this booking.</p>}
             </div>
           </div>
 

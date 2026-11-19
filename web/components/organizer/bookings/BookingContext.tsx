@@ -25,6 +25,7 @@ export type BookingDecisionStatus = "APPROVED" | "REJECTED";
 type PackageBooking = {
   id: string;
   packageName: string;
+  customerName: string;
   date: string;
   rawDate: string;
   tourists: number;
@@ -122,6 +123,7 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       apiBookings.map((booking) => ({
         id: booking.booking_number,
         packageName: booking.package?.name ?? "Unknown Package",
+        customerName: [booking.customer?.first_name, booking.customer?.last_name].filter(Boolean).join(" ") || "Unknown customer",
         date: formatDate(booking.hiking_date),
         rawDate: booking.hiking_date.slice(0, 10),
         tourists: booking.tourist_count,
@@ -192,7 +194,8 @@ export function BookingProvider({ children }: { children: ReactNode }) {
       const matchesSearch =
         !query ||
         booking.id.toLowerCase().includes(query) ||
-        booking.packageName.toLowerCase().includes(query);
+        booking.packageName.toLowerCase().includes(query) ||
+        booking.customerName.toLowerCase().includes(query);
 
       const matchesStatus =
         statusFilter === "All Status" ||

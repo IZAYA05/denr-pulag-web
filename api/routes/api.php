@@ -51,12 +51,14 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
     Route::get('/blocked-dates', [BlockedDateController::class, 'index']);
 
     Route::get('/conversations', [ConversationController::class, 'index']);
+    Route::get('/conversation-contacts', [ConversationController::class, 'contacts']);
+    Route::post('/direct-conversations', [ConversationController::class, 'startDirect']);
+    Route::post('/conversations', [ConversationController::class, 'store']);
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
     Route::post('/conversations/{conversation}/messages', [ConversationController::class, 'sendMessage']);
     Route::get('/message-attachments/{attachment}', [MessageAttachmentController::class, 'show']);
 
     Route::middleware('role:USER')->group(function () {
-        Route::post('/conversations', [ConversationController::class, 'store']);
         Route::post('/conversations/{conversation}/organizer-application/resubmit', [ConversationController::class, 'resubmitOrganizerApplication']);
     });
 
@@ -357,7 +359,6 @@ Route::middleware(['auth:sanctum', 'account.active'])->group(function () {
         ]);
 
         // Stage 1: Organizer approves or rejects Tourist package bookings.
-
         Route::patch('/package-bookings/{packageBooking}/status', [PackageBookingController::class, 'updateStatus'])->middleware('booking.approval-window');
 
     });

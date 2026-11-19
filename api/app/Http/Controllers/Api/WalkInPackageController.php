@@ -34,7 +34,7 @@ class WalkInPackageController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'price' => ['required', 'numeric', 'min:0'],
-            'max_tourists' => ['required', 'integer', 'min:1', 'max:12'],
+            'max_tourists' => ['required', 'integer', 'in:1'],
             'services' => ['required', 'array', 'min:1'],
             'services.*' => ['required', 'string', 'max:255'],
         ]);
@@ -96,7 +96,7 @@ class WalkInPackageController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'price' => ['required', 'numeric', 'min:0'],
-            'max_tourists' => ['required', 'integer', 'min:1', 'max:12'],
+            'max_tourists' => ['required', 'integer', 'in:1'],
             'services' => ['required', 'array', 'min:1'],
             'services.*' => ['required', 'string', 'max:255'],
         ]);

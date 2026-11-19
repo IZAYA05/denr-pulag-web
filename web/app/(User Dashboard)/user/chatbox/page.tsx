@@ -1,5 +1,11 @@
-import Chatbox from "@/components/shared/chatbox/Chatbox";
+"use client";
+
+import DirectChatbox from "@/components/shared/chatbox/DirectChatbox";
 
 export default function UserChatboxPage() {
-  return <Chatbox mode="visitor" />;
+  return (
+    <section className="w-full">
+      <DirectChatbox embedded />
+    </section>
+  );
 }

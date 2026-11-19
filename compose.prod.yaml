@@ -1,0 +1,50 @@
+
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.prod
+
+    container_name: denr-pulag-api-prod
+    working_dir: /var/www
+
+    ports:
+      - "18001:8000"
+
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: http://localhost:18001
+      APP_TIMEZONE: Asia/Manila
+
+      DB_CONNECTION: pgsql
+      DB_HOST: host.docker.internal
+      DB_PORT: 5432
+      DB_DATABASE: epulag
+      DB_USERNAME: denr_pulag
+      DB_PASSWORD: denr_pulag_dev
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_LARAVEL_API_URL: http://localhost:18001
+
+    container_name: denr-pulag-web-prod
+
+    ports:
+      - "3001:3000"
+
+    env_file:
+      - ./web/.env
+
+    environment:
+      NODE_ENV: production
+      AUTH_TRUST_HOST: "true"
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      LARAVEL_API_URL: http://api:8000
+      NEXT_PUBLIC_LARAVEL_API_URL: http://localhost:18001
+
+    depends_on:
+      - api

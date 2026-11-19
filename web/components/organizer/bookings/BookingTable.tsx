@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  Eye,
-  Pencil,
-  XCircle,
-  CheckCircle,
-} from "lucide-react";
+import Link from "next/link";
+import { Eye, XCircle, CheckCircle, MessageCircle } from "lucide-react";
 
 import {
   useBookings,
@@ -13,7 +9,6 @@ import {
 } from "./BookingContext";
 
 import BookingDetailsModal from "@/components/organizer/BookingDetailsModal";
-import CancelBookingModal from "@/components/organizer/CancelBookingModal";
 import Badge from "@/components/ui/Badge";
 import Card from "@/components/ui/Card";
 import Dropdown from "@/components/ui/Dropdown";
@@ -60,14 +55,10 @@ export default function BookingTable() {
     loading,
     error,
     actionError,
-    cancelling,
     statusLoadingId,
     selectedBooking,
-    bookingToCancel,
     setSelectedBooking,
-    setBookingToCancel,
     setActionError,
-    cancelBooking,
     updateStatus,
   } = useBookings();
 
@@ -126,17 +117,19 @@ export default function BookingTable() {
           <div className="w-full overflow-x-auto">
             <Table>
               <colgroup>
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "25%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "15%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "18%" }} />
                 <col style={{ width: "20%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "14%" }} />
               </colgroup>
 
               <thead>
                 <tr>
                   <th className={headerClass}>Booking ID</th>
+                  <th className={headerClass}>Customer</th>
                   <th className={headerClass}>Package</th>
                   <th className={headerClass}>Hike Date</th>
                   <th className={headerClass}>Tourists</th>
@@ -151,7 +144,7 @@ export default function BookingTable() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-4 py-8 text-center"
                     >
                       Loading bookings...
@@ -160,7 +153,7 @@ export default function BookingTable() {
                 ) : filteredBookings.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-4 py-8 text-center text-gray-500"
                     >
                       No bookings found.
@@ -187,6 +180,12 @@ export default function BookingTable() {
                           className={`${cellClass} whitespace-nowrap font-medium`}
                         >
                           {booking.id}
+                        </td>
+
+                        <td className={cellClass}>
+                          <span className="block min-w-0 break-words">
+                            {booking.customerName}
+                          </span>
                         </td>
 
                         <td className={cellClass}>
@@ -231,16 +230,6 @@ export default function BookingTable() {
                                   View Details
                                 </button>
 
-                                <button
-                                  type="button"
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm opacity-50"
-                                  disabled
-                                  title="Booking editing is not implemented yet."
-                                >
-                                  <Pencil size={16} />
-                                  Edit Booking
-                                </button>
-
                                 {isPending && apiBooking && (
                                   <>
                                     <button
@@ -281,24 +270,15 @@ export default function BookingTable() {
                                   </>
                                 )}
 
-                                <button
-                                  type="button"
-                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                  disabled={
-                                    !apiBooking ||
-                                    booking.status === "Cancelled" ||
-                                    booking.status === "Completed"
-                                  }
-                                  onClick={() => {
-                                    if (apiBooking) {
-                                      setActionError("");
-                                      setBookingToCancel(apiBooking);
-                                    }
-                                  }}
-                                >
-                                  <XCircle size={16} />
-                                  Cancel Booking
-                                </button>
+                                {apiBooking && (
+                                  <Link
+                                    href="/organizer/messages"
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                                  >
+                                    <MessageCircle size={16} />
+                                    Message Customer
+                                  </Link>
+                                )}
                               </div>
                             </Dropdown>
                           </div>
@@ -317,21 +297,6 @@ export default function BookingTable() {
         <BookingDetailsModal
           booking={selectedBooking}
           onClose={() => setSelectedBooking(null)}
-        />
-      )}
-
-      {bookingToCancel && (
-        <CancelBookingModal
-          bookingNumber={bookingToCancel.booking_number}
-          cancelling={cancelling}
-          error={actionError}
-          onKeepBooking={() => {
-            if (!cancelling) {
-              setBookingToCancel(null);
-              setActionError("");
-            }
-          }}
-          onCancelBooking={cancelBooking}
         />
       )}
     </>

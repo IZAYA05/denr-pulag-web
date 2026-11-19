@@ -1,7 +1,11 @@
-import { redirect } from "next/navigation";
+import PageHeader from "@/components/ui/PageHeader";
+import OrganizerVerification from "@/components/organizer/portal/OrganizerVerification";
 
-// The former coordination-verification endpoint was removed from the API.
-// Booking decisions are handled in the current Organizer Bookings workflow.
 export default function OrganizerVerificationPage() {
-  redirect("/organizer/bookings");
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Business Verification" />
+      <OrganizerVerification />
+    </div>
+  );
 }

@@ -12,6 +12,7 @@ use RuntimeException;
 class BookingCapacityService
 {
     public const MAXIMUM_CAPACITY = 500;
+    public const MAXIMUM_WALK_IN_CAPACITY = 250;
 
     /**
      * Serialize capacity-changing booking requests.
@@ -32,6 +33,20 @@ class BookingCapacityService
                 'The booking capacity lock record is missing. Run the pending database migrations.'
             );
         }
+    }
+
+    /** Count active walk-in package bookings for a date. */
+    public function getWalkInCount(string $date): int
+    {
+        return (int) PackageBooking::query()
+            ->whereDate('hiking_date', $date)
+            ->whereHas('package', fn ($query) => $query->where('is_walk_in', true))
+            ->whereNotIn('status', ['CANCELLED', 'REJECTED'])
+            ->where(function ($query) {
+                $query->whereNull('denr_status')
+                    ->orWhere('denr_status', '!=', 'REJECTED');
+            })
+            ->sum('tourist_count');
     }
 
     /**

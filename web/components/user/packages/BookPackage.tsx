@@ -27,6 +27,7 @@ type ApiPackage = {
   price: string | number;
   max_tourists: number;
   status: string;
+  is_walk_in?: boolean;
   services: ApiPackageService[];
 };
 
@@ -197,10 +198,7 @@ export default function BookPackage({
   }, []);
 
 
-  const maximumTourists = Math.min(
-    12,
-    Math.max(1, Number(selectedPackage?.max_tourists) || 12),
-  );
+  const maximumTourists = selectedPackage?.is_walk_in ? 1 : Math.min(12, Math.max(1, Number(selectedPackage?.max_tourists) || 12));
 
   const totalPrice = Number(selectedPackage?.price) * tourists.length;
 
@@ -441,7 +439,7 @@ export default function BookPackage({
       (tourist) =>
         !tourist.full_name.trim() ||
         !tourist.age ||
-        Number(tourist.age) < 1 ||
+        Number(tourist.age) < (selectedPackage.is_walk_in ? 18 : 1) ||
         Number(tourist.age) > 150 ||
         !tourist.gender ||
         !tourist.nationality.trim() ||
@@ -791,7 +789,7 @@ export default function BookPackage({
                       <input
                         required
                         type="number"
-                        min={1}
+                        min={selectedPackage?.is_walk_in ? 18 : 1}
                         max={150}
                         value={tourist.age}
                         onChange={(event) =>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,9 @@ class Conversation extends Model
 {
     protected $fillable = [
         'user_id',
+        'organizer_id',
+        'package_booking_id',
+        'recipient_id',
         'type',
         'subject',
         'status',
@@ -35,6 +39,21 @@ class Conversation extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function organizer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'organizer_id');
+    }
+
+    public function packageBooking(): BelongsTo
+    {
+        return $this->belongsTo(PackageBooking::class, 'package_booking_id');
+    }
+
+    public function recipient(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recipient_id');
     }
 
     public function requestedTrail(): BelongsTo

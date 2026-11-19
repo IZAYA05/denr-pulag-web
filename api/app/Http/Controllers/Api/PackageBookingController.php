@@ -8,6 +8,7 @@ use App\Models\PackageBooking;
 use App\Models\Reservation;
 use App\Models\Trail;
 use App\Models\User;
+use App\Services\BookingCapacityService;
 use App\Notifications\SystemNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -196,6 +197,10 @@ class PackageBookingController extends Controller
             'services',
         ])->findOrFail($validated['package_id']);
 
+        /*
+         * Walk-in Packages are processed exclusively by DENR staff.
+         * They must not be booked through the public online endpoint.
+         */
         if ($package->is_walk_in) {
             return response()->json([
                 'message' => 'The Walk-in Package can only be processed by DENR staff and cannot be booked online.',
@@ -212,6 +217,14 @@ class PackageBookingController extends Controller
             return response()->json([
                 'message' => 'This package is currently inactive.',
             ], 422);
+        }
+
+        if ($package->is_walk_in && ($validated['tourist_count'] !== 1 || count($validated['tourists']) !== 1)) {
+            return response()->json(['message' => 'The DENR Individual Package allows one adult per booking.'], 422);
+        }
+
+        if ($package->is_walk_in && (int) $validated['tourists'][0]['age'] < 18) {
+            return response()->json(['message' => 'The DENR Individual Package is currently available to adults aged 18 and above.'], 422);
         }
 
         if ($validated['tourist_count'] > $package->max_tourists) {
@@ -252,16 +265,40 @@ class PackageBookingController extends Controller
             ], 422);
         }
 
-
         /*
          * Create booking and tourist records
          * inside a database transaction.
          */
-
         $booking = DB::transaction(function () use (
             $validated,
-            $request
+            $request,
+            $package
         ) {
+            $capacityService = app(BookingCapacityService::class);
+            $capacityService->lockForCapacityCheck();
+
+            $summary = $capacityService->getSummary($validated['hiking_date']);
+
+            if (
+                $summary['is_blocked'] ||
+                $summary['current_capacity'] + $validated['tourist_count'] >
+                    BookingCapacityService::MAXIMUM_CAPACITY
+            ) {
+                abort(response()->json([
+                    'message' => 'There are not enough visitor slots remaining for this date.',
+                ], 422));
+            }
+
+            if (
+                $package->is_walk_in &&
+                $capacityService->getWalkInCount($validated['hiking_date']) + 1 >
+                    BookingCapacityService::MAXIMUM_WALK_IN_CAPACITY
+            ) {
+                abort(response()->json([
+                    'message' => 'The daily DENR Individual Package limit of 250 visitors has been reached.',
+                ], 422));
+            }
+
             $bookingNumber = $this->generateBookingNumber();
 
             $booking = PackageBooking::create([
@@ -272,11 +309,9 @@ class PackageBookingController extends Controller
                 'hiking_date' => $validated['hiking_date'],
                 'tourist_count' => $validated['tourist_count'],
 
-                // Stage 1: Organizer review.
-                'status' => 'PENDING',
-
-                // Stage 2 has not started yet.
-                'denr_status' => null,
+                // Walk-in package bookings bypass organizer review and go directly to DENR.
+                'status' => $package->is_walk_in ? 'APPROVED' : 'PENDING',
+                'denr_status' => $package->is_walk_in ? 'PENDING' : null,
 
                 'remarks' => $validated['remarks'] ?? null,
             ]);
@@ -308,32 +343,33 @@ class PackageBookingController extends Controller
         /*
          * Notify the package organizer after successful booking creation.
          */
-
         $customerName = trim(
             ($booking->customer?->first_name ?? '') . ' ' .
             ($booking->customer?->last_name ?? '')
         );
 
-        $this->notifySafely(
-            $booking->package?->organizer,
-            new SystemNotification(
-                'New Package Booking',
-                "{$customerName} submitted a booking for {$booking->package?->name}.",
-                'package_booking',
-                null,
-                [
-                    'booking_id' => $booking->id,
-                    'booking_number' => $booking->booking_number,
-                    'customer_id' => $booking->customer_id,
-                    'package_id' => $booking->package_id,
-                    'package_name' => $booking->package?->name,
-                    'hiking_date' => $booking->hiking_date,
-                    'tourist_count' => $booking->tourist_count,
-                    'status' => 'PENDING',
-                    'denr_status' => null,
-                ]
-            )
-        );
+        if (!$booking->package?->is_walk_in) {
+            $this->notifySafely(
+                $booking->package?->organizer,
+                new SystemNotification(
+                    'New Package Booking',
+                    "{$customerName} submitted a booking for {$booking->package?->name}.",
+                    'package_booking',
+                    null,
+                    [
+                        'booking_id' => $booking->id,
+                        'booking_number' => $booking->booking_number,
+                        'customer_id' => $booking->customer_id,
+                        'package_id' => $booking->package_id,
+                        'package_name' => $booking->package?->name,
+                        'hiking_date' => $booking->hiking_date,
+                        'tourist_count' => $booking->tourist_count,
+                        'status' => 'PENDING',
+                        'denr_status' => null,
+                    ]
+                )
+            );
+        }
 
         return response()->json([
             'message' => 'Package booking created successfully.',
@@ -408,7 +444,6 @@ class PackageBookingController extends Controller
          * The Organizer's decision is independent
          * for every package booking.
          */
-
         $packageBooking->update([
             'status' => $newStatus,
 
@@ -422,7 +457,6 @@ class PackageBookingController extends Controller
         /*
          * Notify the Tourist of the Organizer's decision.
          */
-
         $this->notifySafely(
             $customer,
             new SystemNotification(
@@ -490,7 +524,6 @@ class PackageBookingController extends Controller
          * The Organizer must have approved the booking first.
          * DENR cannot process pending or Organizer-rejected requests.
          */
-
         if (
             $packageBooking->status !== 'APPROVED' ||
             $packageBooking->denr_status !== 'PENDING'
@@ -528,7 +561,6 @@ class PackageBookingController extends Controller
         /*
          * Notify the Tourist of the final DENR decision.
          */
-
         $this->notifySafely(
             $customer,
             new SystemNotification(
@@ -554,7 +586,6 @@ class PackageBookingController extends Controller
         /*
          * Notify the Organizer of DENR's final decision as well.
          */
-
         $this->notifySafely(
             $packageBooking->package?->organizer,
             new SystemNotification(
@@ -629,7 +660,6 @@ class PackageBookingController extends Controller
         /*
          * Notify the package Organizer after cancellation.
          */
-
         $customer = $request->user();
 
         $customerName = trim(
