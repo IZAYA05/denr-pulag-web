@@ -841,13 +841,15 @@ export default function BookPackage({
                     <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                       Contact number
                       <input
-                        maxLength={50}
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={11}
                         value={tourist.contact_number}
                         onChange={(event) =>
                           updateTourist(
                             index,
                             "contact_number",
-                            event.target.value,
+                            event.target.value.replace(/[^0-9]/g, "").slice(0, 11),
                           )
                         }
                         placeholder="Optional"
@@ -903,13 +905,15 @@ export default function BookPackage({
                         <span className="text-red-500">*</span>
                         <input
                           required
-                          maxLength={50}
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={11}
                           value={tourist.emergency_number}
                           onChange={(event) =>
                             updateTourist(
                               index,
                               "emergency_number",
-                              event.target.value,
+                              event.target.value.replace(/[^0-9]/g, "").slice(0, 11),
                             )
                           }
                           placeholder="Emergency contact number"

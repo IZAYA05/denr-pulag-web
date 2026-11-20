@@ -49,8 +49,17 @@ class ConversationController extends Controller
         $isStaff = in_array($role, ['ADMIN', 'EMPLOYEE'], true);
 
         if ($isStaff) {
-            // Private USER <-> ORGANIZER conversations are never visible in staff Chatbox.
-            $query->whereRaw('UPPER(type) <> ?', ['DIRECT_MESSAGE']);
+            // Staff can view official DENR conversations and direct chats they participate in.
+            $query->where(function ($visibilityQuery) use ($user) {
+                $visibilityQuery->whereRaw('UPPER(type) <> ?', ['DIRECT_MESSAGE'])
+                    ->orWhere(function ($directQuery) use ($user) {
+                        $directQuery->whereRaw('UPPER(type) = ?', ['DIRECT_MESSAGE'])
+                            ->where(function ($participantQuery) use ($user) {
+                                $participantQuery->where('user_id', $user->id)
+                                    ->orWhere('recipient_id', $user->id);
+                            });
+                    });
+            });
         } else {
             $query->where(function ($participantQuery) use ($user) {
                 $participantQuery->where('user_id', $user->id)
@@ -72,20 +81,23 @@ class ConversationController extends Controller
         ]);
     }
 
-    /** Return only opposite-role contacts for unrestricted USER <-> ORGANIZER messaging. */
+    /** Return eligible active contacts for direct messaging based on the sender role. */
     public function contacts(Request $request): JsonResponse
     {
         $role = strtoupper((string) $request->user()->role);
 
-        if (!in_array($role, ['USER', 'ORGANIZER'], true)) {
-            return response()->json(['contacts' => []]);
-        }
-
-        $targetRole = $role === 'USER' ? 'ORGANIZER' : 'USER';
+        $allowedRoles = match ($role) {
+            'USER' => ['ORGANIZER', 'ADMIN', 'EMPLOYEE'],
+            'ORGANIZER' => ['USER', 'ADMIN', 'EMPLOYEE'],
+            'ADMIN', 'EMPLOYEE' => ['USER', 'ORGANIZER'],
+            default => [],
+        };
 
         $contacts = User::query()
-            ->where('role', $targetRole)
+            ->whereIn('role', $allowedRoles)
             ->where('status', 'ACTIVE')
+            ->whereKeyNot($request->user()->id)
+            ->orderBy('role')
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get(['id', 'first_name', 'last_name', 'email', 'role']);
@@ -93,15 +105,22 @@ class ConversationController extends Controller
         return response()->json(['contacts' => $contacts]);
     }
 
-    /** Start a direct USER <-> ORGANIZER conversation. No booking is required. */
+    /** Start a direct conversation between eligible Tourist, Organizer, and DENR accounts. */
     public function startDirect(Request $request): JsonResponse
     {
         $sender = $request->user();
         $role = strtoupper((string) $sender->role);
 
-        if (!in_array($role, ['USER', 'ORGANIZER'], true)) {
+        $allowedRoles = match ($role) {
+            'USER' => ['ORGANIZER', 'ADMIN', 'EMPLOYEE'],
+            'ORGANIZER' => ['USER', 'ADMIN', 'EMPLOYEE'],
+            'ADMIN', 'EMPLOYEE' => ['USER', 'ORGANIZER'],
+            default => [],
+        };
+
+        if (empty($allowedRoles)) {
             return response()->json([
-                'message' => 'Only Tourist and Organizer accounts can start direct chats.',
+                'message' => 'Your account role is not allowed to start direct chats.',
             ], 403);
         }
 
@@ -110,23 +129,21 @@ class ConversationController extends Controller
             'body' => ['required', 'string', 'max:5000'],
         ]);
 
-        $targetRole = $role === 'USER' ? 'ORGANIZER' : 'USER';
-
         $recipient = User::query()
             ->whereKey($validated['recipient_id'])
-            ->where('role', $targetRole)
+            ->whereIn('role', $allowedRoles)
             ->where('status', 'ACTIVE')
             ->first();
 
         if (!$recipient) {
             return response()->json([
-                'message' => 'You can only message an active account of the opposite role.',
+                'message' => 'You can only message active accounts permitted for your role.',
             ], 422);
         }
 
         $conversation = DB::transaction(function () use ($sender, $recipient, $validated) {
             $conversation = Conversation::query()
-                ->where('type', 'DIRECT_MESSAGE')
+                ->whereRaw('UPPER(type) = ?', ['DIRECT_MESSAGE'])
                 ->where(function ($q) use ($sender, $recipient) {
                     $q->where(function ($pair) use ($sender, $recipient) {
                         $pair->where('user_id', $sender->id)
@@ -1078,17 +1095,12 @@ class ConversationController extends Controller
         $role = strtoupper((string) $user->role);
         $isStaff = in_array($role, ['ADMIN', 'EMPLOYEE'], true);
 
-        // Direct messages are private to their USER and ORGANIZER participants.
         if (strtoupper((string) $conversation->type) === 'DIRECT_MESSAGE') {
-            return !$isStaff
-                && in_array($role, ['USER', 'ORGANIZER'], true)
-                && (
-                    (int) $conversation->user_id === (int) $user->id
-                    || (int) $conversation->recipient_id === (int) $user->id
-                );
+            return (int) $conversation->user_id === (int) $user->id
+                || (int) $conversation->recipient_id === (int) $user->id;
         }
 
-        // Staff retain access to the official DENR conversation workflows.
+        // Staff retain access to official DENR conversation workflows.
         return $isStaff
             || (int) $conversation->user_id === (int) $user->id
             || (int) $conversation->organizer_id === (int) $user->id
