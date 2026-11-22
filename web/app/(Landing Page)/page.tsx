@@ -1,6 +1,6 @@
 import Hero from "@/components/landing/Hero";
 import About from "@/components/landing/About";
-import Trails from "@/components/landing/Trails";
+import MountPulagInfo from "@/components/landing/MountPulagInfo";
 import FAQ from "@/components/landing/FAQ";
 
 const LandingPage = () => {
@@ -10,7 +10,7 @@ const LandingPage = () => {
 
       <About />
 
-      <Trails />
+      <MountPulagInfo />
 
       <FAQ />
     </main>

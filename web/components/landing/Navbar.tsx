@@ -16,8 +16,8 @@ const navigation = [
     href: "#about",
   },
   {
-    label: "Trails",
-    href: "#trails",
+    label: "Mount Pulag",
+    href: "#mount-pulag",
   },
   {
     label: "FAQ",
@@ -70,7 +70,6 @@ const Navbar = () => {
         }`}
       >
         <div className="mx-auto flex h-[72px] max-w-7xl items-center px-6 lg:px-8">
-
           {/* Logo */}
 
           <Link
@@ -139,12 +138,16 @@ const Navbar = () => {
           <button
             onClick={() => setIsOpen(true)}
             className="ml-auto rounded-lg p-2 transition hover:bg-zinc-200 dark:hover:bg-white/10 lg:hidden"
+            aria-label="Open navigation menu"
           >
             <Menu className="h-6 w-6 text-zinc-900 dark:text-white" />
           </button>
         </div>
       </motion.header>
-            <AnimatePresence>
+
+      {/* Mobile Navigation */}
+
+      <AnimatePresence>
         {isOpen && (
           <>
             <motion.div
@@ -180,6 +183,7 @@ const Navbar = () => {
                 <button
                   onClick={() => setIsOpen(false)}
                   className="rounded-lg p-2"
+                  aria-label="Close navigation menu"
                 >
                   <X className="h-6 w-6" />
                 </button>
