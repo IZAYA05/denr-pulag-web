@@ -155,6 +155,7 @@ class PackageBookingController extends Controller
                 'required',
                 'string',
                 'max:255',
+                'regex:/^[\p{L}\p{M} .\'’\-]+$/u',
             ],
             'tourists.*.age' => [
                 'required',
@@ -185,6 +186,7 @@ class PackageBookingController extends Controller
                 'required',
                 'string',
                 'max:255',
+                'regex:/^[\p{L}\p{M} .\'’\-]+$/u',
             ],
             'tourists.*.emergency_number' => [
                 'required',

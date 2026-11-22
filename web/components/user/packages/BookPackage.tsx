@@ -771,6 +771,8 @@ export default function BookPackage({
                       <input
                         required
                         maxLength={255}
+                        pattern="[\p{L}\p{M} .\u0027\u2019\u002D]+"
+                        title="Use letters, spaces, apostrophes or hyphens only."
                         value={tourist.full_name}
                         onChange={(event) =>
                           updateTourist(
@@ -887,6 +889,8 @@ export default function BookPackage({
                         <input
                           required
                           maxLength={255}
+                          pattern="[\p{L}\p{M} .\u0027\u2019\u002D]+"
+                          title="Use letters, spaces, apostrophes or hyphens only."
                           value={tourist.emergency_contact}
                           onChange={(event) =>
                             updateTourist(

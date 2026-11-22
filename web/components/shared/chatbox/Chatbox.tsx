@@ -19,7 +19,6 @@ import {
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import AttachmentPreview from "./AttachmentPreview";
-import StaffReservationCreator from "./StaffReservationCreator";
 import HikingDatePicker, { type BookingCapacitySummary } from "@/components/user/packages/HikingDatePicker";
 
 const API_URL =
@@ -1125,31 +1124,7 @@ export default function Chatbox({
                     </div>
                   )}
 
-                  {isStaff &&
-                    selected.type === "RESERVATION_REQUEST" &&
-                    !selected.created_reservation &&
-                    selected.status !== "CLOSED" &&
-                    accessToken && (
-                      <div className="mt-4">
-                        <StaffReservationCreator
-                          conversationId={selected.id}
-                          requestedVisitors={Number(
-                            selected.requested_visitors || 1
-                          )}
-                          userName={formatPerson(selected.user)}
-                          userPhone={selected.user?.phone}
-                          accessToken={accessToken}
-                          onError={setError}
-                          onCreated={async (message) => {
-                            setSuccess(message);
-                            await Promise.all([
-                              loadConversation(selected.id),
-                              loadConversations(),
-                            ]);
-                          }}
-                        />
-                      </div>
-                    )}
+
                 </div>
 
                 <div className="flex-1 space-y-4 overflow-y-auto bg-zinc-50/70 p-4 sm:p-5 dark:bg-zinc-950/40">

@@ -1,0 +1,10 @@
+{
+  "files": [
+    "web/components/shared/chatbox/DirectChatbox.tsx",
+    "web/components/shared/chatbox/Chatbox.tsx",
+    "web/components/user/packages/BookPackage.tsx",
+    "web/components/organizer/OrganizerUpcomingTrips.tsx",
+    "api/app/Http/Controllers/Api/PackageBookingController.php"
+  ],
+  "status": "partial implementation; not all 9 requested items completed"
+}

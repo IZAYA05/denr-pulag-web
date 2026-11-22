@@ -163,6 +163,16 @@ export default function DirectChatbox({
     }
   }, [selectedId, loadSelected]);
 
+  // Poll for new messages and conversation updates so users don't need to refresh manually.
+  useEffect(() => {
+    if (!token) return;
+    const interval = window.setInterval(() => {
+      void load();
+      if (selectedId) void loadSelected(selectedId);
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [token, selectedId, load, loadSelected]);
+
   async function startChat(event: FormEvent) {
     event.preventDefault();
 

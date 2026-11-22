@@ -102,7 +102,7 @@ export default function OrganizerUpcomingTrips() {
                 <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-500 dark:text-zinc-400">
                   <span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />{formatDate(booking.hiking_date)}</span>
                   <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{booking.trail?.name || "Trail unavailable"}</span>
-                  <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{booking.tourist_count ?? booking.tourists?.length ?? 0} visitors</span>
+                  <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{booking.tourist_count ?? booking.tourists?.length ?? 0} {(booking.tourist_count ?? booking.tourists?.length ?? 0) === 1 ? "visitor" : "visitors"}</span>
                 </div>
               </div>
               <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
