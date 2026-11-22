@@ -223,7 +223,7 @@ export default function Chatbox({
   const [revisionDotFile, setRevisionDotFile] = useState<File | null>(null);
   const [revisionPermitFile, setRevisionPermitFile] = useState<File | null>(null);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (silent = false) => {
     if (!accessToken) {
       setConversations([]);
       setLoading(false);
@@ -231,8 +231,10 @@ export default function Chatbox({
       return;
     }
 
-    setLoading(true);
-    setError("");
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
 
     try {
       const response = await fetch(`${API_URL}/api/conversations`, {
@@ -295,21 +297,25 @@ export default function Chatbox({
           : next[0]?.id ?? null
       );
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to load conversations."
-      );
+      if (!silent) {
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Unable to load conversations."
+        );
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [accessToken, isStaff]);
 
-  const loadConversation = useCallback(async (id: number) => {
+  const loadConversation = useCallback(async (id: number, silent = false) => {
     if (!accessToken) return;
 
-    setDetailLoading(true);
-    setError("");
+    if (!silent) {
+      setDetailLoading(true);
+      setError("");
+    }
 
     try {
       const response = await fetch(`${API_URL}/api/conversations/${id}`, {
@@ -330,30 +336,34 @@ export default function Chatbox({
 
       setSelected(data.conversation);
 
-      const application = data.conversation.organizer_application;
+      if (!silent) {
+        const application = data.conversation.organizer_application;
 
-      if (application) {
-        setRevisionDotNumber(application.dot_accreditation_number || "");
-        setRevisionPermitNumber(application.business_permit_number || "");
-        setReviewNotes(application.review_notes || "");
-      } else {
-        setReviewNotes("");
+        if (application) {
+          setRevisionDotNumber(application.dot_accreditation_number || "");
+          setRevisionPermitNumber(application.business_permit_number || "");
+          setReviewNotes(application.review_notes || "");
+        } else {
+          setReviewNotes("");
+        }
       }
     } catch (caught) {
-      setSelected(null);
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to load this conversation."
-      );
+      if (!silent) {
+        setSelected(null);
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Unable to load this conversation."
+        );
+      }
     } finally {
-      setDetailLoading(false);
+      if (!silent) setDetailLoading(false);
     }
   }, [accessToken]);
 
   useEffect(() => {
     if (accessToken) {
-      void Promise.resolve().then(loadConversations);
+      void Promise.resolve().then(() => loadConversations());
     }
   }, [accessToken, loadConversations]);
 
@@ -373,8 +383,8 @@ export default function Chatbox({
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") {
-        void loadConversations();
-        if (selectedId !== null) void loadConversation(selectedId);
+        void loadConversations(true);
+        if (selectedId !== null) void loadConversation(selectedId, true);
       }
     }, 5000);
 
