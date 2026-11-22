@@ -250,11 +250,12 @@ export default function Chatbox({
 
       // Direct USER <-> ORGANIZER chats are displayed in the separate
       // direct-chat interface. Keep this view limited to DENR workflows.
-      const next = isStaff
-        ? allConversations
-        : allConversations.filter(
-            (item) => item.type !== "DIRECT_MESSAGE"
-          );
+      // Direct USER/ORGANIZER and DENR staff conversations are handled by
+      // DirectChatbox, which provides recipient selection and message polling.
+      // Keep this component focused on reservation and organizer workflows.
+      const next = allConversations.filter(
+        (item) => item.type !== "DIRECT_MESSAGE"
+      );
 
       setConversations(next);
       setSelectedId((current) =>
@@ -332,6 +333,22 @@ export default function Chatbox({
       void Promise.resolve().then(() => setSelected(null));
     }
   }, [selectedId, loadConversation]);
+
+  // Automatically synchronize staff and visitor reservation conversations.
+  // The selected conversation is refreshed separately so incoming replies appear
+  // without a manual page refresh.
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadConversations();
+        if (selectedId !== null) void loadConversation(selectedId);
+      }
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [accessToken, selectedId, loadConversations, loadConversation]);
 
   useEffect(() => {
     if (!isStaff) {
