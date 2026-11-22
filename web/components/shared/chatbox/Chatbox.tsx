@@ -90,6 +90,7 @@ type ApiConversation = {
   requested_visitors?: number | null;
   requested_trail?: ApiTrail | null;
   user?: ApiUser | null;
+  recipient?: ApiUser | null;
   organizer_application?: ApiOrganizerApplication | null;
   created_reservation?: ApiReservation | null;
   latest_message?: ApiMessage | null;
@@ -191,6 +192,10 @@ export default function Chatbox({
   const isStaff = mode === "staff";
 
   const [conversations, setConversations] = useState<ApiConversation[]>([]);
+  const [contacts, setContacts] = useState<ApiUser[]>([]);
+  const [showDirectCreate, setShowDirectCreate] = useState(false);
+  const [directRecipientId, setDirectRecipientId] = useState("");
+  const [directFirstMessage, setDirectFirstMessage] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selected, setSelected] = useState<ApiConversation | null>(null);
   const [trails, setTrails] = useState<ApiTrail[]>([]);
@@ -248,13 +253,39 @@ export default function Chatbox({
         ? data.conversations
         : [];
 
-      // Direct USER <-> ORGANIZER chats are displayed in the separate
-      // direct-chat interface. Keep this view limited to DENR workflows.
-      // Direct USER/ORGANIZER and DENR staff conversations are handled by
-      // DirectChatbox, which provides recipient selection and message polling.
-      // Keep this component focused on reservation and organizer workflows.
-      const next = allConversations.filter(
-        (item) => item.type !== "DIRECT_MESSAGE"
+      let directConversations: ApiConversation[] = [];
+      if (isStaff) {
+        const [contactsResponse, directResponse] = await Promise.all([
+          fetch(`${API_URL}/api/conversation-contacts`, {
+            headers: {
+              Accept: "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            cache: "no-store",
+          }),
+          fetch(`${API_URL}/api/conversations?type=DIRECT_MESSAGE`, {
+            headers: {
+              Accept: "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            cache: "no-store",
+          }),
+        ]);
+        const contactsData = (await contactsResponse.json()) as ApiResponse & { contacts?: ApiUser[] };
+        const directData = (await directResponse.json()) as ApiResponse;
+        if (!contactsResponse.ok || !directResponse.ok) {
+          throw new Error(contactsData.message || directData.message || "Unable to load direct chats.");
+        }
+        setContacts(Array.isArray(contactsData.contacts) ? contactsData.contacts : []);
+        directConversations = Array.isArray(directData.conversations)
+          ? directData.conversations
+          : [];
+      }
+
+      const next = [...allConversations, ...directConversations].sort((a, b) =>
+        (b.last_message_at || b.latest_message?.created_at || "").localeCompare(
+          a.last_message_at || a.latest_message?.created_at || ""
+        )
       );
 
       setConversations(next);
@@ -447,6 +478,48 @@ export default function Chatbox({
           ? caught.message
           : "Unable to submit your request."
       );
+    } finally {
+      setSending(false);
+    }
+  }
+
+
+
+  async function startDirectConversation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !directRecipientId || !directFirstMessage.trim()) return;
+
+    setSending(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/direct-conversations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          recipient_id: Number(directRecipientId),
+          body: directFirstMessage.trim(),
+        }),
+      });
+
+      const data = (await response.json()) as ApiResponse;
+      if (!response.ok || !data.conversation) {
+        throw new Error(getErrorMessage(data, "Unable to start direct conversation."));
+      }
+
+      setDirectFirstMessage("");
+      setDirectRecipientId("");
+      setShowDirectCreate(false);
+      await loadConversations();
+      setSelectedId(data.conversation.id);
+      setSuccess(data.message || "Direct conversation started.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to start direct conversation.");
     } finally {
       setSending(false);
     }
@@ -666,6 +739,21 @@ export default function Chatbox({
             Refresh
           </Button>
 
+          {isStaff && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowDirectCreate((value) => !value);
+                setError("");
+                setSuccess("");
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {showDirectCreate ? "Close direct chat" : "New direct chat"}
+            </Button>
+          )}
+
           {!isStaff && (
             <Button
               type="button"
@@ -704,6 +792,45 @@ export default function Chatbox({
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           {success}
         </div>
+      )}
+
+      {isStaff && showDirectCreate && (
+        <Card className="p-4 sm:p-5">
+          <form onSubmit={startDirectConversation} className="space-y-3">
+            <h3 className="font-semibold text-zinc-900 dark:text-white">Start direct conversation</h3>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Recipient
+              <select
+                required
+                value={directRecipientId}
+                onChange={(event) => setDirectRecipientId(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+              >
+                <option value="">Select a contact</option>
+                {contacts.map((contact) => (
+                  <option key={contact.id} value={contact.id}>
+                    {formatPerson(contact)}{contact.email ? ` · ${contact.email}` : ""}{contact.role ? ` (${contact.role})` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <textarea
+              required
+              rows={3}
+              maxLength={5000}
+              value={directFirstMessage}
+              onChange={(event) => setDirectFirstMessage(event.target.value)}
+              placeholder="Write your first message..."
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setShowDirectCreate(false)} disabled={sending}>Cancel</Button>
+              <Button type="submit" disabled={sending || !directRecipientId || !directFirstMessage.trim()}>
+                <Send className="mr-2 h-4 w-4" />{sending ? "Sending..." : "Start conversation"}
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
 
       {showCreate && !isStaff ? (
@@ -984,9 +1111,11 @@ export default function Chatbox({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="line-clamp-1 text-sm font-semibold text-zinc-900 dark:text-white">
-                          {isStaff
-                            ? formatPerson(conversation.user)
-                            : conversation.subject}
+                          {conversation.type === "DIRECT_MESSAGE"
+                            ? formatPerson(Number(conversation.user?.id) === Number(session?.user?.id) ? conversation.recipient : conversation.user)
+                            : isStaff
+                              ? formatPerson(conversation.user)
+                              : conversation.subject}
                         </p>
                         <span className="shrink-0 text-[10px] text-zinc-400">
                           {formatDateTime(conversation.last_message_at)}
@@ -994,9 +1123,11 @@ export default function Chatbox({
                       </div>
 
                       <p className="mt-1 line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {conversation.type === "ORGANIZER_APPLICATION"
-                          ? "Organizer role application"
-                          : "Reservation slot coordination"}
+                        {conversation.type === "DIRECT_MESSAGE"
+                          ? "Direct message"
+                          : conversation.type === "ORGANIZER_APPLICATION"
+                            ? "Organizer role application"
+                            : "Reservation slot coordination"}
                       </p>
 
                       <p className="mt-2 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">
@@ -1047,12 +1178,16 @@ export default function Chatbox({
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <h2 className="break-words text-lg font-bold text-zinc-900 dark:text-white">
-                        {selected.subject}
+                        {selected.type === "DIRECT_MESSAGE"
+                          ? formatPerson(Number(selected.user?.id) === Number(session?.user?.id) ? selected.recipient : selected.user)
+                          : selected.subject}
                       </h2>
                       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {isStaff
-                          ? `Visitor: ${formatPerson(selected.user)}`
-                          : "Conversation with DENR staff"}{" "}
+                        {selected.type === "DIRECT_MESSAGE"
+                          ? `Direct conversation · ${Number(selected.user?.id) === Number(session?.user?.id) ? selected.recipient?.role || "Contact" : selected.user?.role || "Contact"}`
+                          : isStaff
+                            ? `Visitor: ${formatPerson(selected.user)}`
+                            : "Conversation with DENR staff"}{" "}
                         · Request #{selected.id}
                       </p>
                     </div>
@@ -1391,9 +1526,9 @@ export default function Chatbox({
       )}
 
       <p className="text-xs leading-5 text-zinc-400">
-        E-PULAG chatbox is limited to reservation-slot coordination and
-        Organizer role applications. DENR staff review credentials manually;
-        messages do not automatically confirm or create reservations.
+        E-PULAG chatbox supports reservation-slot coordination, Organizer role
+        applications, and direct conversations. DENR staff review credentials
+        manually; messages do not automatically confirm or create reservations.
       </p>
     </div>
   );
