@@ -102,7 +102,7 @@ const Navbar = () => {
                 <li key={item.label}>
                   <a
                     href={item.href}
-                    className="group relative text-[15px] font-medium text-zinc-700 transition hover:text-black dark:text-zinc-300 dark:hover:text-white"
+                    className="group relative whitespace-nowrap text-[15px] font-medium text-zinc-700 transition hover:text-black dark:text-zinc-300 dark:hover:text-white"
                   >
                     {item.label}
 
