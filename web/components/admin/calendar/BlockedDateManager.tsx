@@ -39,6 +39,13 @@ function getTodayManila() {
   }).format(new Date());
 }
 
+function getDateOffsetManila(days: number) {
+  const today = getTodayManila();
+  const [year, month, day] = today.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
 export default function BlockedDateManager() {
   const { data: session } = useSession();
   const accessToken = session?.user?.accessToken;
@@ -184,7 +191,8 @@ export default function BlockedDateManager() {
           <input
             type="date"
             required
-            min={getTodayManila()}
+            min={getDateOffsetManila(1)}
+            max={getDateOffsetManila(30)}
             value={date}
             onChange={(event) => setDate(event.target.value)}
             className="mt-1 block w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
