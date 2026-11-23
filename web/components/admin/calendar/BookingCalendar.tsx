@@ -350,23 +350,16 @@ export default function BookingCalendar() {
   }, [fetchBookings]);
 
   return (
-    <Card className="p-6">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">
-            Booking Calendar
-          </h3>
-
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Direct reservations and package hiking schedules.
-          </p>
-        </div>
-
+    <Card className="p-4 sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
+          Booking Calendar
+        </h3>
         <button
           type="button"
           onClick={() => void fetchBookings()}
           disabled={loading}
-          className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          className="rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
         >
           {loading ? "Loading..." : "Refresh"}
         </button>
@@ -375,56 +368,43 @@ export default function BookingCalendar() {
       {error && (
         <div
           role="alert"
-          className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400"
+          className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400"
         >
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex h-80 items-center justify-center text-sm text-zinc-500">
-          Loading booking schedules...
+        <div className="flex h-64 items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
+          Loading...
         </div>
       ) : !error && events.length === 0 ? (
-        <div className="flex h-80 flex-col items-center justify-center text-center">
+        <div className="flex h-64 flex-col items-center justify-center text-center">
           <p className="font-medium text-zinc-700 dark:text-zinc-300">
-            No booking schedules available
-          </p>
-
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            Actual hiking schedules will appear here when bookings are recorded.
+            No booking schedules
           </p>
         </div>
       ) : !error ? (
         <>
-          <div className="mb-4 flex flex-wrap gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />
-              DENR Approved
-            </span>
-
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
-              Awaiting DENR
-            </span>
-
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-600" />
-              Awaiting Organizer
-            </span>
-
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-zinc-500" />
-              Completed / Status unavailable
-            </span>
-
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-red-600" />
-              Unavailable / Blocked date
-            </span>
+          <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2">
+            {[
+              ["DENR Approved", "bg-emerald-500"],
+              ["Awaiting DENR", "bg-blue-500"],
+              ["Awaiting Organizer", "bg-amber-500"],
+              ["Completed / Other", "bg-zinc-500"],
+              ["Blocked", "bg-red-500"],
+            ].map(([label, color]) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400"
+              >
+                <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
+                {label}
+              </span>
+            ))}
           </div>
 
-          <div className="calendar-wrapper">
+          <div className="epulag-calendar overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
             <FullCalendar
               plugins={[dayGridPlugin]}
               initialView="dayGridMonth"
@@ -432,17 +412,145 @@ export default function BookingCalendar() {
               events={events}
               editable={false}
               selectable={false}
-              dayMaxEvents={true}
+              dayMaxEvents={3}
+              moreLinkClick="popover"
               weekends={true}
               headerToolbar={{
                 left: "prev,next today",
                 center: "title",
                 right: "dayGridMonth",
               }}
+              buttonText={{ today: "Today", month: "Month" }}
             />
           </div>
         </>
       ) : null}
+
+      <style jsx global>{`
+        .epulag-calendar .fc {
+          --fc-border-color: rgb(228 228 231);
+          --fc-page-bg-color: transparent;
+          --fc-neutral-bg-color: rgb(244 244 245);
+          --fc-today-bg-color: rgba(59, 130, 246, 0.08);
+          color: rgb(63 63 70);
+          font-size: 13px;
+        }
+        .dark .epulag-calendar .fc {
+          --fc-border-color: rgb(63 63 70);
+          --fc-neutral-bg-color: rgb(39 39 42);
+          color: rgb(212 212 216);
+        }
+        .epulag-calendar .fc .fc-toolbar {
+          flex-wrap: wrap;
+          gap: 0.75rem;
+          margin-bottom: 1rem !important;
+        }
+        .epulag-calendar .fc .fc-toolbar-title {
+          font-size: 1.15rem;
+          font-weight: 600;
+          color: rgb(24 24 27);
+        }
+        .dark .epulag-calendar .fc .fc-toolbar-title {
+          color: rgb(244 244 245);
+        }
+        .epulag-calendar .fc .fc-button {
+          border: 1px solid rgb(228 228 231) !important;
+          border-radius: 0.5rem !important;
+          background: rgb(250 250 250) !important;
+          color: rgb(63 63 70) !important;
+          box-shadow: none !important;
+          font-weight: 500 !important;
+          padding: 0.4rem 0.65rem !important;
+          text-transform: none !important;
+        }
+        .dark .epulag-calendar .fc .fc-button {
+          border-color: rgb(63 63 70) !important;
+          background: rgb(39 39 42) !important;
+          color: rgb(228 228 231) !important;
+        }
+        .epulag-calendar .fc .fc-button:hover {
+          background: rgb(244 244 245) !important;
+        }
+        .dark .epulag-calendar .fc .fc-button:hover {
+          background: rgb(63 63 70) !important;
+        }
+        .epulag-calendar .fc .fc-button:disabled {
+          opacity: 0.45 !important;
+        }
+        .epulag-calendar .fc .fc-button-active {
+          background: rgb(228 228 231) !important;
+        }
+        .dark .epulag-calendar .fc .fc-button-active {
+          background: rgb(63 63 70) !important;
+        }
+        .epulag-calendar .fc .fc-col-header-cell {
+          background: rgb(250 250 250);
+          padding: 0.65rem 0;
+        }
+        .dark .epulag-calendar .fc .fc-col-header-cell {
+          background: rgb(39 39 42);
+        }
+        .epulag-calendar .fc .fc-col-header-cell-cushion {
+          color: rgb(82 82 91);
+          font-weight: 600;
+          text-decoration: none;
+        }
+        .dark .epulag-calendar .fc .fc-col-header-cell-cushion {
+          color: rgb(212 212 216);
+        }
+        .epulag-calendar .fc .fc-daygrid-day-number {
+          padding: 0.45rem;
+          color: rgb(82 82 91);
+          text-decoration: none;
+        }
+        .dark .epulag-calendar .fc .fc-daygrid-day-number {
+          color: rgb(212 212 216);
+        }
+        .epulag-calendar .fc .fc-day-today {
+          background: var(--fc-today-bg-color) !important;
+        }
+        .epulag-calendar .fc .fc-day-today .fc-daygrid-day-number {
+          color: rgb(37 99 235);
+          font-weight: 700;
+        }
+        .epulag-calendar .fc .fc-daygrid-day-frame {
+          min-height: 6rem;
+        }
+        .epulag-calendar .fc .fc-daygrid-event {
+          border-radius: 0.35rem;
+          border-width: 0;
+          margin: 2px 3px;
+          padding: 1px 3px;
+          font-size: 11px;
+        }
+        .epulag-calendar .fc .fc-event-title,
+        .epulag-calendar .fc .fc-event-time {
+          font-weight: 500;
+        }
+        .epulag-calendar .fc .fc-more-link {
+          color: rgb(59 130 246);
+          font-weight: 600;
+        }
+        @media (max-width: 640px) {
+          .epulag-calendar .fc .fc-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .epulag-calendar .fc .fc-toolbar-chunk {
+            display: flex;
+            justify-content: center;
+          }
+          .epulag-calendar .fc .fc-toolbar-title {
+            font-size: 1rem;
+          }
+          .epulag-calendar .fc .fc-daygrid-day-frame {
+            min-height: 4.25rem;
+          }
+          .epulag-calendar .fc .fc-daygrid-event {
+            font-size: 10px;
+          }
+        }
+      `}</style>
     </Card>
   );
 }
