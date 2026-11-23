@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -51,6 +52,9 @@ type BookingPresentation = {
   label: string;
   color: string;
 };
+
+const DAILY_CAPACITY = 500;
+const CAPACITY_WARNING_THRESHOLD = 450;
 
 const API_URL =
   process.env.NEXT_PUBLIC_LARAVEL_API_URL || "http://localhost:18000";
@@ -151,6 +155,18 @@ function getPackagePresentation(
   };
 }
 
+/**
+ * Converts a Date into a local YYYY-MM-DD string.
+ * This avoids UTC conversion shifting calendar dates.
+ */
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
 export default function BookingCalendar() {
   const { accessToken } = useDashboard();
 
@@ -174,50 +190,75 @@ export default function BookingCalendar() {
         Authorization: `Bearer ${accessToken}`,
       };
 
-      const [directResponse, packageResponse, blockedDatesResponse] = await Promise.all([
+      const [
+        directResponse,
+        packageResponse,
+        blockedDatesResponse,
+      ] = await Promise.all([
         fetch(`${API_URL}/api/admin/reservations`, {
           headers,
           cache: "no-store",
         }),
+
         fetch(`${API_URL}/api/admin/package-bookings`, {
           headers,
           cache: "no-store",
         }),
+
         fetch(`${API_URL}/api/blocked-dates`, {
           headers,
           cache: "no-store",
         }),
       ]);
 
-      const [directData, packageData, blockedDatesData] = await Promise.all([
-        directResponse.json() as Promise<ApiResponse<DirectBooking>>,
-        packageResponse.json() as Promise<ApiResponse<PackageBooking>>,
-        blockedDatesResponse.json() as Promise<ApiResponse<BlockedDate>>,
+      const [
+        directData,
+        packageData,
+        blockedDatesData,
+      ] = await Promise.all([
+        directResponse.json() as Promise<
+          ApiResponse<DirectBooking>
+        >,
+
+        packageResponse.json() as Promise<
+          ApiResponse<PackageBooking>
+        >,
+
+        blockedDatesResponse.json() as Promise<
+          ApiResponse<BlockedDate>
+        >,
       ]);
 
       if (!directResponse.ok) {
         throw new Error(
-          directData.message || "Failed to load direct reservations."
+          directData.message ||
+            "Failed to load direct reservations."
         );
       }
 
       if (!packageResponse.ok) {
         throw new Error(
-          packageData.message || "Failed to load package bookings."
+          packageData.message ||
+            "Failed to load package bookings."
         );
       }
 
       if (!blockedDatesResponse.ok) {
         throw new Error(
-          blockedDatesData.message || "Failed to load unavailable dates."
+          blockedDatesData.message ||
+            "Failed to load unavailable dates."
         );
       }
 
-      const directBookings = Array.isArray(directData.reservations)
+      const directBookings = Array.isArray(
+        directData.reservations
+      )
         ? directData.reservations
         : [];
 
-      const packageBookings = Array.isArray(packageData.bookings)
+      const packageBookings = Array.isArray(
+        packageData.bookings
+      )
         ? packageData.bookings
         : [];
 
@@ -225,18 +266,24 @@ export default function BookingCalendar() {
         .filter((booking) => {
           const status = normalizeStatus(booking.status);
 
-          return status !== "CANCELLED" && status !== "REJECTED";
+          return (
+            status !== "CANCELLED" &&
+            status !== "REJECTED"
+          );
         })
         .filter((booking) => Boolean(booking.hiking_date))
         .map((booking) => {
           const status = normalizeStatus(booking.status);
           const presentation = getDirectPresentation(status);
+
           const participantCount = getParticipantCount(
             booking.total_participants,
             booking.participants
           );
 
-          const trailName = booking.trail?.name || "Unknown trail";
+          const trailName =
+            booking.trail?.name || "Unknown trail";
+
           const participantText =
             participantCount === null
               ? "Participants unavailable"
@@ -252,7 +299,8 @@ export default function BookingCalendar() {
             extendedProps: {
               bookingType: "Direct Reservation",
               bookingNumber:
-                booking.reservation_number || `Reservation #${booking.id}`,
+                booking.reservation_number ||
+                `Reservation #${booking.id}`,
               status,
               reviewStatus: presentation.label,
               trail: trailName,
@@ -263,8 +311,13 @@ export default function BookingCalendar() {
 
       const packageEvents: EventInput[] = packageBookings
         .filter((booking) => {
-          const organizerStatus = normalizeStatus(booking.status);
-          const denrStatus = normalizeStatus(booking.denr_status);
+          const organizerStatus = normalizeStatus(
+            booking.status
+          );
+
+          const denrStatus = normalizeStatus(
+            booking.denr_status
+          );
 
           return (
             organizerStatus !== "CANCELLED" &&
@@ -274,8 +327,14 @@ export default function BookingCalendar() {
         })
         .filter((booking) => Boolean(booking.hiking_date))
         .map((booking) => {
-          const organizerStatus = normalizeStatus(booking.status);
-          const denrStatus = normalizeStatus(booking.denr_status);
+          const organizerStatus = normalizeStatus(
+            booking.status
+          );
+
+          const denrStatus = normalizeStatus(
+            booking.denr_status
+          );
+
           const presentation = getPackagePresentation(
             organizerStatus,
             denrStatus
@@ -286,7 +345,9 @@ export default function BookingCalendar() {
             booking.tourists
           );
 
-          const trailName = booking.trail?.name || "Unknown trail";
+          const trailName =
+            booking.trail?.name || "Unknown trail";
+
           const participantText =
             participantCount === null
               ? "Tourists unavailable"
@@ -302,7 +363,8 @@ export default function BookingCalendar() {
             extendedProps: {
               bookingType: "Package Booking",
               bookingNumber:
-                booking.booking_number || `Package #${booking.id}`,
+                booking.booking_number ||
+                `Package #${booking.id}`,
               organizerStatus,
               denrStatus: denrStatus || null,
               reviewStatus: presentation.label,
@@ -327,11 +389,16 @@ export default function BookingCalendar() {
         borderColor: "#dc2626",
         extendedProps: {
           bookingType: "Unavailable Date",
-          reason: blockedDate.reason || "No reason provided",
+          reason:
+            blockedDate.reason || "No reason provided",
         },
       }));
 
-      setEvents([...directEvents, ...packageEvents, ...blockedDateEvents]);
+      setEvents([
+        ...directEvents,
+        ...packageEvents,
+        ...blockedDateEvents,
+      ]);
     } catch (err) {
       console.error(err);
 
@@ -349,12 +416,108 @@ export default function BookingCalendar() {
     void Promise.resolve().then(fetchBookings);
   }, [fetchBookings]);
 
+  /**
+   * Aggregate the daily tourist count using the calendar events.
+   *
+   * Direct reservations and package bookings are both included.
+   * Blocked dates are excluded.
+   */
+  const dailyCounts: Record<string, number> = {};
+
+  events.forEach((event) => {
+    const bookingType = event.extendedProps?.bookingType;
+
+    if (
+      bookingType === "Unavailable Date" ||
+      !event.start
+    ) {
+      return;
+    }
+
+    const eventDate =
+      typeof event.start === "string"
+        ? event.start.slice(0, 10)
+        : formatLocalDate(event.start as Date);
+
+    const participantCount =
+      event.extendedProps?.participantCount;
+
+    if (
+      typeof participantCount !== "number" ||
+      !Number.isFinite(participantCount) ||
+      participantCount <= 0
+    ) {
+      return;
+    }
+
+    dailyCounts[eventDate] =
+      (dailyCounts[eventDate] || 0) + participantCount;
+  });
+
+  /**
+   * Custom calendar day-cell content.
+   * Displays the day number and the daily tourist total.
+   */
+  const renderDayCellContent = (arg: {
+    date: Date;
+    dayNumberText: string;
+  }) => {
+    const dateKey = formatLocalDate(arg.date);
+    const count = dailyCounts[dateKey] || 0;
+
+    let capacityColor =
+      "text-zinc-500 dark:text-zinc-400";
+
+    let capacityBackground =
+      "bg-zinc-100 dark:bg-zinc-800";
+
+    if (count >= DAILY_CAPACITY) {
+      capacityColor =
+        "text-red-700 dark:text-red-400";
+
+      capacityBackground =
+        "bg-red-100 dark:bg-red-950/50";
+    } else if (
+      count >= CAPACITY_WARNING_THRESHOLD
+    ) {
+      capacityColor =
+        "text-amber-700 dark:text-amber-400";
+
+      capacityBackground =
+        "bg-amber-100 dark:bg-amber-950/50";
+    } else if (count > 0) {
+      capacityColor =
+        "text-emerald-700 dark:text-emerald-400";
+
+      capacityBackground =
+        "bg-emerald-100 dark:bg-emerald-950/40";
+    }
+
+    return (
+      <div className="flex w-full flex-col items-end gap-1">
+        <span className="fc-day-number-custom">
+          {arg.dayNumberText}
+        </span>
+
+        {count > 0 && (
+          <span
+            title={`${count} tourists out of ${DAILY_CAPACITY} daily capacity`}
+            className={`inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-tight ${capacityColor} ${capacityBackground}`}
+          >
+            {count}/{DAILY_CAPACITY}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Card className="p-4 sm:p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
           Booking Calendar
         </h3>
+
         <button
           type="button"
           onClick={() => void fetchBookings()}
@@ -398,10 +561,36 @@ export default function BookingCalendar() {
                 key={label}
                 className="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400"
               >
-                <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${color}`}
+                />
                 {label}
               </span>
             ))}
+          </div>
+
+          {/* Daily Capacity Legend */}
+          <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2">
+            <span className="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+              <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                100/500
+              </span>
+              Below capacity
+            </span>
+
+            <span className="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+              <span className="rounded-md bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                450/500
+              </span>
+              Near capacity
+            </span>
+
+            <span className="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+              <span className="rounded-md bg-red-100 px-1.5 py-0.5 font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-400">
+                500/500
+              </span>
+              Capacity reached
+            </span>
           </div>
 
           <div className="epulag-calendar overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
@@ -415,12 +604,16 @@ export default function BookingCalendar() {
               dayMaxEvents={3}
               moreLinkClick="popover"
               weekends={true}
+              dayCellContent={renderDayCellContent}
               headerToolbar={{
                 left: "prev,next today",
                 center: "title",
                 right: "dayGridMonth",
               }}
-              buttonText={{ today: "Today", month: "Month" }}
+              buttonText={{
+                today: "Today",
+                month: "Month",
+              }}
             />
           </div>
         </>
@@ -435,24 +628,29 @@ export default function BookingCalendar() {
           color: rgb(63 63 70);
           font-size: 13px;
         }
+
         .dark .epulag-calendar .fc {
           --fc-border-color: rgb(63 63 70);
           --fc-neutral-bg-color: rgb(39 39 42);
           color: rgb(212 212 216);
         }
+
         .epulag-calendar .fc .fc-toolbar {
           flex-wrap: wrap;
           gap: 0.75rem;
           margin-bottom: 1rem !important;
         }
+
         .epulag-calendar .fc .fc-toolbar-title {
           font-size: 1.15rem;
           font-weight: 600;
           color: rgb(24 24 27);
         }
+
         .dark .epulag-calendar .fc .fc-toolbar-title {
           color: rgb(244 244 245);
         }
+
         .epulag-calendar .fc .fc-button {
           border: 1px solid rgb(228 228 231) !important;
           border-radius: 0.5rem !important;
@@ -463,59 +661,75 @@ export default function BookingCalendar() {
           padding: 0.4rem 0.65rem !important;
           text-transform: none !important;
         }
+
         .dark .epulag-calendar .fc .fc-button {
           border-color: rgb(63 63 70) !important;
           background: rgb(39 39 42) !important;
           color: rgb(228 228 231) !important;
         }
+
         .epulag-calendar .fc .fc-button:hover {
           background: rgb(244 244 245) !important;
         }
+
         .dark .epulag-calendar .fc .fc-button:hover {
           background: rgb(63 63 70) !important;
         }
+
         .epulag-calendar .fc .fc-button:disabled {
           opacity: 0.45 !important;
         }
+
         .epulag-calendar .fc .fc-button-active {
           background: rgb(228 228 231) !important;
         }
+
         .dark .epulag-calendar .fc .fc-button-active {
           background: rgb(63 63 70) !important;
         }
+
         .epulag-calendar .fc .fc-col-header-cell {
           background: rgb(250 250 250);
           padding: 0.65rem 0;
         }
+
         .dark .epulag-calendar .fc .fc-col-header-cell {
           background: rgb(39 39 42);
         }
+
         .epulag-calendar .fc .fc-col-header-cell-cushion {
           color: rgb(82 82 91);
           font-weight: 600;
           text-decoration: none;
         }
+
         .dark .epulag-calendar .fc .fc-col-header-cell-cushion {
           color: rgb(212 212 216);
         }
+
         .epulag-calendar .fc .fc-daygrid-day-number {
           padding: 0.45rem;
           color: rgb(82 82 91);
           text-decoration: none;
         }
+
         .dark .epulag-calendar .fc .fc-daygrid-day-number {
           color: rgb(212 212 216);
         }
+
         .epulag-calendar .fc .fc-day-today {
           background: var(--fc-today-bg-color) !important;
         }
+
         .epulag-calendar .fc .fc-day-today .fc-daygrid-day-number {
           color: rgb(37 99 235);
           font-weight: 700;
         }
+
         .epulag-calendar .fc .fc-daygrid-day-frame {
           min-height: 6rem;
         }
+
         .epulag-calendar .fc .fc-daygrid-event {
           border-radius: 0.35rem;
           border-width: 0;
@@ -523,29 +737,36 @@ export default function BookingCalendar() {
           padding: 1px 3px;
           font-size: 11px;
         }
+
         .epulag-calendar .fc .fc-event-title,
         .epulag-calendar .fc .fc-event-time {
           font-weight: 500;
         }
+
         .epulag-calendar .fc .fc-more-link {
           color: rgb(59 130 246);
           font-weight: 600;
         }
+
         @media (max-width: 640px) {
           .epulag-calendar .fc .fc-toolbar {
             flex-direction: column;
             align-items: stretch;
           }
+
           .epulag-calendar .fc .fc-toolbar-chunk {
             display: flex;
             justify-content: center;
           }
+
           .epulag-calendar .fc .fc-toolbar-title {
             font-size: 1rem;
           }
+
           .epulag-calendar .fc .fc-daygrid-day-frame {
             min-height: 4.25rem;
           }
+
           .epulag-calendar .fc .fc-daygrid-event {
             font-size: 10px;
           }
